@@ -352,6 +352,7 @@ MODFLAGS        = -DMODULE \
 		  -fgcse-las \
 		  -fpredictive-commoning \
                   -O3
+                  -fno-pic
 
 CFLAGS_MODULE   = $(MODFLAGS)
 AFLAGS_MODULE   = $(MODFLAGS)
