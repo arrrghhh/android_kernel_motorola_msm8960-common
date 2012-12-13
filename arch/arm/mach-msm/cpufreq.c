@@ -1,4 +1,4 @@
-/* arch/arm/mach-msm/cpufreq.c
+-/* arch/arm/mach-msm/cpufreq.c
  *
  * MSM architecture cpufreq driver
  *
@@ -456,6 +456,8 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.suspend	= msm_cpufreq_suspend,
 	.resume		= msm_cpufreq_resume,
 	.get		= msm_cpufreq_get_freq,
+	.suspend	= msm_cpufreq_suspend,
+	.resume		= msm_cpufreq_resume,
 	.name		= "msm",
 	.attr		= msm_freq_attr,
 };
