@@ -442,6 +442,10 @@ static ssize_t store_mfreq(struct sysdev_class *class,
 
 static SYSDEV_CLASS_ATTR(mfreq, 0200, NULL, store_mfreq);
 
+=======
+}
+
+>>>>>>> b2408f4... msm: cpufreq: Implement suspend/resume for cpufreq driver
 static struct freq_attr *msm_freq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
@@ -456,6 +460,8 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.suspend	= msm_cpufreq_suspend,
 	.resume		= msm_cpufreq_resume,
 	.get		= msm_cpufreq_get_freq,
+	.suspend	= msm_cpufreq_suspend,
+	.resume		= msm_cpufreq_resume,
 	.name		= "msm",
 	.attr		= msm_freq_attr,
 };
@@ -479,6 +485,7 @@ static int __init msm_cpufreq_register(void)
 #endif
 
 	register_early_suspend(&msm_cpu_early_suspend_handler);
+
 	return cpufreq_register_driver(&msm_cpufreq_driver);
 }
 
