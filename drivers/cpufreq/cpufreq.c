@@ -1841,6 +1841,232 @@ error_out:
 	return ret;
 }
 
+#ifdef CONFIG_SEC_DVFS
+struct cpufreq_queue_data {
+	unsigned int flag;
+	unsigned int value;
+
+	struct work_struct work;
+	struct workqueue_struct *wq;
+};
+
+struct cpufreq_queue_data cpufreq_queue_priv;
+static DEFINE_SEMAPHORE(cpufreq_defered_lock);
+static DEFINE_MUTEX(set_cpu_freq_lock);
+
+static unsigned long freq_limit_start_flag;
+static unsigned int app_min_freq_limit = MIN_FREQ_LIMIT;
+static unsigned int app_max_freq_limit = MAX_FREQ_LIMIT;
+static unsigned int user_min_freq_limit = MIN_FREQ_LIMIT;
+static unsigned int user_max_freq_limit = MAX_FREQ_LIMIT;
+
+int cpufreq_set_limits_off
+	(int cpu, unsigned int min, unsigned int max)
+{
+	int ret = -ENODEV;
+	unsigned long flags;
+
+	spin_lock_irqsave(&cpufreq_driver_lock, flags);
+
+	if (!cpufreq_driver)
+		goto out_unlock;
+
+	if (!try_module_get(cpufreq_driver->owner))
+		goto out_unlock;
+
+	per_cpu(cpufreq_policy_save, cpu).min = min;
+	per_cpu(cpufreq_policy_save, cpu).max = max;
+
+	ret = 0;
+
+	module_put(cpufreq_driver->owner);
+
+out_unlock:
+	spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+
+	return ret;
+}
+
+int cpufreq_set_limits(int cpu, unsigned int min, unsigned int max)
+{
+	struct cpufreq_policy *policy = NULL;
+	struct cpufreq_policy new_policy;
+	int ret = -EINVAL;
+
+	if (cpu_is_offline(cpu))
+		goto no_policy;
+
+	policy = cpufreq_cpu_get(cpu);
+	if (!policy)
+		goto no_policy;
+
+	if (policy->min == min && policy->max == max)
+		goto cpu_put;
+
+	if (lock_policy_rwsem_write(cpu) < 0)
+		goto cpu_put;
+
+	ret = cpufreq_get_policy(&new_policy, policy->cpu);
+	if (ret)
+		goto unlock;
+
+	if (max < policy->min) {
+		new_policy.min = max;
+		ret = __cpufreq_set_policy(policy, &new_policy);
+		policy->user_policy.min = policy->min;
+	}
+
+	if (min > policy->max) {
+		new_policy.max = min;
+		ret = __cpufreq_set_policy(policy, &new_policy);
+		policy->user_policy.max = policy->max;
+	}
+
+	new_policy.min = min;
+	new_policy.max = max;
+
+	ret = __cpufreq_set_policy(policy, &new_policy);
+
+	policy->user_policy.min = policy->min;
+	policy->user_policy.max = policy->max;
+
+unlock:
+	unlock_policy_rwsem_write(policy->cpu);
+
+cpu_put:
+	cpufreq_cpu_put(policy);
+
+no_policy:
+	if (cpu_is_offline(cpu))
+		ret = cpufreq_set_limits_off(cpu, min, max);
+
+	return ret;
+}
+
+int cpufreq_set_limit(unsigned int flag, unsigned int value)
+{
+	unsigned int max_value = 0;
+	unsigned int min_value = 0;
+
+	if (!flag) {
+		printk(KERN_ERR"%s: invalid flag %d\n",
+			__func__, flag);
+		return -EINVAL;
+	}
+
+	mutex_lock(&set_cpu_freq_lock);
+
+	/* update min/max freq limit for apps/user */
+	if (flag == APPS_MAX_START)
+		app_max_freq_limit = value;
+	else if (flag == APPS_MAX_STOP)
+		app_max_freq_limit = MAX_FREQ_LIMIT;
+	else if (flag == APPS_MIN_START)
+		app_min_freq_limit = value;
+	else if (flag == APPS_MIN_STOP)
+		app_min_freq_limit = MIN_FREQ_LIMIT;
+	else if (flag == USER_MAX_START)
+		user_max_freq_limit = value;
+	else if (flag == USER_MAX_STOP)
+		user_max_freq_limit = MAX_FREQ_LIMIT;
+	else if (flag == USER_MIN_START)
+		user_min_freq_limit = value;
+	else if (flag == USER_MIN_STOP)
+		user_min_freq_limit = MIN_FREQ_LIMIT;
+
+	/*  set/clear bits */
+	if (flag%10 == 0)
+		set_bit(flag/MULTI_FACTOR, &freq_limit_start_flag);
+	else
+		clear_bit(flag/MULTI_FACTOR, &freq_limit_start_flag);
+
+	if (flag == APPS_MIN_START && value == MAX_FREQ_LIMIT)
+		clear_bit(UNI_PRO_STOP/MULTI_FACTOR, &freq_limit_start_flag);
+
+	/* set max freq */
+	if (freq_limit_start_flag & UNI_PRO_BIT)
+		max_value = LOW_MAX_FREQ_LIMIT;
+	else
+		max_value = MAX_FREQ_LIMIT;
+
+	/* cpufreq_max_limit */
+	if (freq_limit_start_flag & APPS_MAX_BIT) {
+		if (max_value > app_max_freq_limit)
+			max_value = app_max_freq_limit;
+	}
+
+	/* thermald */
+	if (freq_limit_start_flag & USER_MAX_BIT) {
+		if (max_value > user_max_freq_limit)
+			max_value = user_max_freq_limit;
+	}
+
+	/* set min freq */
+	if (freq_limit_start_flag & TOUCH_BOOSTER_FIRST_BIT)
+		min_value = TOUCH_BOOSTER_FIRST_FREQ_LIMIT;
+	else if (freq_limit_start_flag & TOUCH_BOOSTER_SECOND_BIT)
+		min_value = TOUCH_BOOSTER_SECOND_FREQ_LIMIT;
+	else if (freq_limit_start_flag & TOUCH_BOOSTER_BIT)
+		min_value = TOUCH_BOOSTER_FREQ_LIMIT;
+	else
+		min_value = MIN_FREQ_LIMIT;
+
+	/* cpufreq_min_limit */
+	if (freq_limit_start_flag & APPS_MIN_BIT) {
+		if (min_value < app_min_freq_limit)
+			min_value = app_min_freq_limit;
+	}
+
+	/* user */
+	if (freq_limit_start_flag & USER_MIN_BIT) {
+		if (min_value < user_min_freq_limit)
+			min_value = user_min_freq_limit;
+	}
+
+	/* max is important */
+	if (min_value > max_value)
+		min_value = max_value;
+
+	mutex_unlock(&set_cpu_freq_lock);
+
+	/* update min/max */
+	cpufreq_set_limits(BOOT_CPU, min_value, max_value);
+	cpufreq_set_limits(NON_BOOT_CPU, min_value, max_value);
+
+	return 0;
+}
+
+static void cpufreq_set_limit_work(struct work_struct *ws)
+{
+	struct cpufreq_queue_data *cq = NULL;
+
+	if (ws) {
+		cq = container_of(ws, struct cpufreq_queue_data, work);
+		if (cq)
+			cpufreq_set_limit(cq->flag, cq->value);
+	}
+
+	up(&cpufreq_defered_lock);
+}
+
+int cpufreq_set_limit_defered(unsigned int flag, unsigned value)
+{
+	int ret = 0;
+
+	if (down_trylock(&cpufreq_defered_lock) == 0) {
+		cpufreq_queue_priv.flag = flag;
+		cpufreq_queue_priv.value = value;
+		ret = queue_work_on(0, cpufreq_queue_priv.wq,
+			&cpufreq_queue_priv.work);
+		if (!ret)
+			up(&cpufreq_defered_lock);
+	} else
+		ret = -EBUSY;
+
+	return ret;
+}
+#endif
+
 /**
  *	cpufreq_update_policy - re-evaluate an existing cpufreq policy
  *	@cpu: CPU which shall be re-evaluated
@@ -2003,7 +2229,6 @@ err_null_driver:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(cpufreq_register_driver);
-
 
 /**
  * cpufreq_unregister_driver - unregister the current CPUFreq driver
