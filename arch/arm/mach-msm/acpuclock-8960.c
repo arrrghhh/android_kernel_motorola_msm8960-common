@@ -1327,8 +1327,8 @@ static void __init bus_init(unsigned int init_bw)
 
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
 
-#define HFPLL_MIN_VDD		 800000
-#define HFPLL_MAX_VDD		1350000
+#define HFPLL_MIN_VDD		 600000
+#define HFPLL_MAX_VDD		1450000
 
 ssize_t acpuclk_get_vdd_levels_str(char *buf) {
 
