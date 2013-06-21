@@ -75,7 +75,7 @@ struct msm_ts {
 	struct device			*dev;
 };
 
-static uint32_t msm_tsdebug;
+static uint32_t msm_tsdebug = 0;
 module_param_named(tsdebug, msm_tsdebug, uint, 0664);
 
 #define tssc_readl(t, a)	(readl_relaxed(((t)->tssc_base) + (a)))
