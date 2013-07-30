@@ -731,10 +731,7 @@ ssize_t mdp4_dsi_cmd_show_event(struct device *dev,
 		msecs_to_jiffies(VSYNC_PERIOD * 4));
 	if (ret <= 0) {
 		vctrl->wait_vsync_cnt = 0;
-		vsync_tick = ktime_to_ns(ktime_get());
-		ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
-		buf[strlen(buf) + 1] = '\0';
-		return ret;
+		vctrl->vsync_time = ktime_get();
 	}
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
@@ -742,8 +739,6 @@ ssize_t mdp4_dsi_cmd_show_event(struct device *dev,
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 
 	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
-	pr_debug("%s: UEVENT\n", __func__);
-
 	buf[strlen(buf) + 1] = '\0';
 	return ret;
 }
@@ -822,6 +817,27 @@ void mdp4_mipi_vsync_enable(struct msm_fb_data_type *mfd,
 		MDP_OUTP(MDP_BASE + 0x20c, data);
 	}
 	mdp_clk_ctrl(0);
+}
+
+void mdp4_dsi_cmd_free_base_pipe(struct msm_fb_data_type *mfd)
+{
+	struct vsycn_ctrl *vctrl;
+	struct mdp4_overlay_pipe *pipe;
+
+	vctrl = &vsync_ctrl_db[0];
+	pipe = vctrl->base_pipe;
+
+	if (pipe == NULL)
+		return ;
+	/* adb stop */
+	if (pipe->pipe_type == OVERLAY_TYPE_BF)
+		mdp4_overlay_borderfill_stage_down(pipe);
+
+	/* base pipe may change after borderfill_stage_down */
+	pipe = vctrl->base_pipe;
+	mdp4_mixer_stage_down(pipe, 1);
+	mdp4_overlay_pipe_free(pipe, 1);
+	vctrl->base_pipe = NULL;
 }
 
 void mdp4_dsi_cmd_base_swap(int cndx, struct mdp4_overlay_pipe *pipe)

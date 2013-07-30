@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -568,6 +567,7 @@ int mdp4_atv_on(struct platform_device *pdev);
 int mdp4_atv_off(struct platform_device *pdev);
 void mdp4_dsi_video_fxn_register(cmd_fxn_t fxn);
 void mdp4_dsi_video_overlay(struct msm_fb_data_type *mfd);
+void mdp4_overlay_free_base_pipe(struct msm_fb_data_type *mfd);
 void mdp4_lcdc_vsync_ctrl(struct fb_info *info, int enable);
 void mdp4_overlay0_done_dsi_video(int cndx);
 void mdp4_overlay0_done_dsi_cmd(int cndx);
@@ -706,6 +706,10 @@ void mdp4_dsi_cmd_overlay_blt(struct msm_fb_data_type *mfd,
 void mdp4_dsi_video_overlay_blt(struct msm_fb_data_type *mfd,
 					struct msmfb_overlay_blt *req);
 void mdp4_dsi_video_base_swap(int cndx, struct mdp4_overlay_pipe *pipe);
+void mdp4_dsi_video_free_base_pipe(struct msm_fb_data_type *mfd);
+void mdp4_dsi_cmd_free_base_pipe(struct msm_fb_data_type *mfd);
+void mdp4_lcdc_free_base_pipe(struct msm_fb_data_type *mfd);
+void mdp4_dtv_free_base_pipe(struct msm_fb_data_type *mfd);
 static inline void mdp4_mddi_blt_start(struct msm_fb_data_type *mfd)
 {
 }
@@ -1017,5 +1021,13 @@ void mdp4_wfd_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
 void mdp4_wfd_init(int cndx);
 int mdp4_wfd_pipe_commit(struct msm_fb_data_type *mfd, int cndx, int wait);
 #endif
-
+#ifdef CONFIG_FB_MSM_OVERLAY
+int mdp4_unmap_sec_resource(void);
+#else
+static inline void mdp4_unmap_sec_resource(void);
+{
+	/* empty */
+	return 0;
+}
+#endif
 #endif /* MDP_H */

@@ -279,6 +279,9 @@ static ssize_t msm_fb_fps_level_change(struct device *dev,
 	unsigned long val;
 	int ret;
 
+	if (mfd->panel.type != MIPI_VIDEO_PANEL)
+		return -EINVAL;
+
 	ret = kstrtoul(buf, 10, &val);
 	if (ret)
 		return ret;
@@ -342,7 +345,7 @@ static ssize_t msm_fb_msm_fb_type(struct device *dev,
 }
 
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, msm_fb_msm_fb_type, NULL);
-static DEVICE_ATTR(msm_fb_fps_level, S_IRUGO | S_IWUGO, NULL, \
+static DEVICE_ATTR(msm_fb_fps_level, S_IRUGO | S_IWUSR | S_IWGRP, NULL, \
 				msm_fb_fps_level_change);
 static struct attribute *msm_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
@@ -931,9 +934,6 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 	struct msm_fb_panel_data *pdata = NULL;
 	int ret = 0;
 
-	if (!op_enable)
-		return -EPERM;
-
 	pdata = (struct msm_fb_panel_data *)mfd->pdev->dev.platform_data;
 	if ((!pdata) || (!pdata->on) || (!pdata->off)) {
 		printk(KERN_ERR "msm_fb_blank_sub: no panel operation detected!\n");
@@ -1097,8 +1097,15 @@ static int msm_fb_blank(int blank_mode, struct fb_info *info)
 	}
 	msm_fb_pan_idle(mfd);
 	if (mfd->op_enable == 0) {
-		if (blank_mode == FB_BLANK_UNBLANK)
+		if (blank_mode == FB_BLANK_UNBLANK) {
 			mfd->suspend.panel_power_on = TRUE;
+			/* if unblank is called when system is in suspend,
+			wait for the system to resume */
+			while (mfd->suspend.op_suspend) {
+				pr_debug("waiting for system to resume\n");
+				msleep(20);
+			}
+		}
 		else
 			mfd->suspend.panel_power_on = FALSE;
 	}
@@ -1737,6 +1744,12 @@ static int msm_fb_open(struct fb_info *info, int user)
 		return 0;
 	}
 #endif
+	if (mfd->op_enable == 0) {
+		/* if system is in suspend mode, do not unblank */
+		mfd->ref_cnt++;
+		return 0;
+	}
+
 	if (!mfd->ref_cnt) {
 		if (!bf_supported ||
 			(info->node != 1 && info->node != 2))
@@ -1753,6 +1766,11 @@ static int msm_fb_open(struct fb_info *info, int user)
 
 	mfd->ref_cnt++;
 	return 0;
+}
+
+static void msm_fb_free_base_pipe(struct msm_fb_data_type *mfd)
+{
+	return 	mdp4_overlay_free_base_pipe(mfd);
 }
 
 static int msm_fb_release(struct fb_info *info, int user)
@@ -1775,19 +1793,16 @@ static int msm_fb_release(struct fb_info *info, int user)
 	msm_fb_pan_idle(mfd);
 	mfd->ref_cnt--;
 
-	if ((!mfd->ref_cnt) && (mfd->op_enable)) {
-		if ((ret =
-		     msm_fb_blank_sub(FB_BLANK_POWERDOWN, info,
-				      mfd->op_enable)) != 0) {
-			printk(KERN_ERR "msm_fb_release: can't turn off display!\n");
-			/*
-			 * It should be framework exited in early suspend.
-			 * add 1 back to mfd->ref_cnt so fb could be opened
-			 * in next time.
-			 */
-			mfd->ref_cnt++;
-			pm_runtime_put(info->dev);
-			return ret;
+	if (!mfd->ref_cnt) {
+		if (mfd->op_enable) {
+			ret = msm_fb_blank_sub(FB_BLANK_POWERDOWN, info,
+							mfd->op_enable);
+			if (ret != 0) {
+				printk(KERN_ERR "msm_fb_release: can't turn off display!\n");
+				return ret;
+			}
+		} else {
+			msm_fb_free_base_pipe(mfd);
 		}
 	}
 
@@ -2060,6 +2075,9 @@ static int msm_fb_pan_display_sub(struct fb_var_screeninfo *var,
 
 	mdp_dma_pan_update(info);
 	msm_fb_signal_timeline(mfd);
+	if (mdp4_unmap_sec_resource())
+		pr_err("%s: unmap secure res failed\n", __func__);
+
 	up(&msm_fb_pan_sem);
 
 	if (!bl_updated)

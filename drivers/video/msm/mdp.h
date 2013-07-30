@@ -97,6 +97,11 @@ struct vsync {
 	struct device *dev;
 	struct work_struct vsync_work;
 	int vsync_irq_enabled;
+	int disabled_clocks;
+	struct completion vsync_wait;
+	atomic_t suspend;
+	atomic_t vsync_resume;
+	int sysfs_created;
 };
 
 extern struct vsync vsync_cntrl;
@@ -858,8 +863,12 @@ static inline int mdp_bus_scale_update_request(u64 ab_p0,
 void mdp_dma_vsync_ctrl(int enable);
 void mdp_dma_video_vsync_ctrl(int enable);
 void mdp_dma_lcdc_vsync_ctrl(int enable);
-void mdp3_vsync_irq_enable(int intr, int term);
-void mdp3_vsync_irq_disable(int intr, int term);
+ssize_t mdp_dma_show_event(struct device *dev,
+		struct device_attribute *attr, char *buf);
+ssize_t mdp_dma_video_show_event(struct device *dev,
+		struct device_attribute *attr, char *buf);
+ssize_t mdp_dma_lcdc_show_event(struct device *dev,
+		struct device_attribute *attr, char *buf);
 
 #ifdef MDP_HW_VSYNC
 void vsync_clk_prepare_enable(void);
@@ -885,6 +894,8 @@ void __mdp_histogram_kickoff(struct mdp_hist_mgmt *mgmt);
 void __mdp_histogram_reset(struct mdp_hist_mgmt *mgmt);
 unsigned int mdp_check_suspended(void);
 void mdp_footswitch_ctrl(boolean on);
+int mdp_enable_iommu_clocks(void);
+int mdp_disable_iommu_clocks(void);
 
 static inline void mdp_hang_panic(void) {
 	print_hex_dump(KERN_ERR, "MDP_HANG:", DUMP_PREFIX_OFFSET, 32, 4,
