@@ -254,19 +254,40 @@ struct platform_device apq_cpudai_fm_tx = {
 	.id     = 0x3005,
 };
 
+struct platform_device apq_cpudai_slim_4_rx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x4008,
+};
+
+struct platform_device apq_cpudai_slim_4_tx = {
+	.name   = "msm-dai-q6",
+	.id     = 0x4009,
+};
+
 /*
  * Machine specific data for AUX PCM Interface
  * which the driver will  be unware of.
  */
 struct msm_dai_auxpcm_pdata apq_auxpcm_pdata = {
 	.clk = "pcm_clk",
-	.mode = AFE_PCM_CFG_MODE_PCM,
-	.sync = AFE_PCM_CFG_SYNC_INT,
-	.frame = AFE_PCM_CFG_FRM_256BPF,
-	.quant = AFE_PCM_CFG_QUANT_LINEAR_NOPAD,
-	.slot = 0,
-	.data = AFE_PCM_CFG_CDATAOE_MASTER,
-	.pcm_clk_rate = 2048000,
+	.mode_8k = {
+		.mode = AFE_PCM_CFG_MODE_PCM,
+		.sync = AFE_PCM_CFG_SYNC_INT,
+		.frame = AFE_PCM_CFG_FRM_256BPF,
+		.quant = AFE_PCM_CFG_QUANT_LINEAR_NOPAD,
+		.slot = 0,
+		.data = AFE_PCM_CFG_CDATAOE_MASTER,
+		.pcm_clk_rate = 2048000,
+	},
+	.mode_16k = {
+		.mode = AFE_PCM_CFG_MODE_PCM,
+		.sync = AFE_PCM_CFG_SYNC_INT,
+		.frame = AFE_PCM_CFG_FRM_256BPF,
+		.quant = AFE_PCM_CFG_QUANT_LINEAR_NOPAD,
+		.slot = 0,
+		.data = AFE_PCM_CFG_CDATAOE_MASTER,
+		.pcm_clk_rate = 4096000,
+	}
 };
 
 struct platform_device apq_cpudai_auxpcm_rx = {
@@ -282,6 +303,20 @@ struct platform_device apq_cpudai_auxpcm_tx = {
 	.id = 3,
 	.dev = {
 		.platform_data = &apq_auxpcm_pdata,
+	},
+};
+
+struct msm_mi2s_pdata mpq_mi2s_tx_data = {
+	.rx_sd_lines = 0,
+	.tx_sd_lines = MSM_MI2S_SD0 | MSM_MI2S_SD1 | MSM_MI2S_SD2 |
+		       MSM_MI2S_SD3,
+};
+
+struct platform_device mpq_cpudai_mi2s_tx = {
+	.name	= "msm-dai-q6-mi2s",
+	.id	= -1, /*MI2S_TX */
+	.dev = {
+		.platform_data = &mpq_mi2s_tx_data,
 	},
 };
 
@@ -338,6 +373,21 @@ struct platform_device apq_cpudai_afe_02_tx = {
 struct platform_device apq_pcm_afe = {
 	.name	= "msm-pcm-afe",
 	.id	= -1,
+};
+
+struct platform_device apq_cpudai_stub = {
+	.name = "msm-dai-stub",
+	.id = -1,
+};
+
+struct platform_device apq_cpudai_slimbus_1_rx = {
+	.name = "msm-dai-q6",
+	.id = 0x4002,
+};
+
+struct platform_device apq_cpudai_slimbus_1_tx = {
+	.name = "msm-dai-q6",
+	.id = 0x4003,
 };
 
 static struct resource resources_ssbi_pmic1[] = {

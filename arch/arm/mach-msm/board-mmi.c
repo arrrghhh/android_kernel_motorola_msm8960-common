@@ -94,8 +94,8 @@
 
 #ifdef CONFIG_WCD9310_CODEC
 #include <linux/slimbus/slimbus.h>
-#include <linux/mfd/wcd9310/core.h>
-#include <linux/mfd/wcd9310/pdata.h>
+#include <linux/mfd/wcd9xxx/core.h>
+#include <linux/mfd/wcd9xxx/pdata.h>
 #endif
 
 #ifdef CONFIG_LEDS_LM3559
@@ -132,6 +132,12 @@
 #include <linux/apanic_mmc.h>
 #include <linux/platform_data/ram_console.h>
 
+#define PM8XXX_GPIO_OUTPUT_STRENGTH(_gpio, _val, _out_strength) \
+	PM8XXX_GPIO_INIT(_gpio, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, _val, \
+			PM_GPIO_PULL_NO, PM_GPIO_VIN_S4, \
+			_out_strength, \
+			PM_GPIO_FUNC_NORMAL, 0, 0)
+
 /* Initial PM8921 GPIO configurations vanquish, quinara */
 static struct pm8xxx_gpio_init pm8921_gpios_vanquish[] = {
 	PM8XXX_GPIO_DISABLE(6),				 			/* Disable unused */
@@ -148,6 +154,8 @@ static struct pm8xxx_gpio_init pm8921_gpios_vanquish[] = {
 	PM8XXX_GPIO_OUTPUT(43,	    PM_GPIO_PULL_UP_1P5), /* DISP_RESET_N */
 	PM8XXX_GPIO_OUTPUT_VIN(37, PM_GPIO_PULL_UP_1P5,
 			PM_GPIO_VIN_L17),	/* DISP_RESET_N on P1C+ */
+	/* TABLA CODEC RESET */
+	PM8XXX_GPIO_OUTPUT_STRENGTH(34, 0, PM_GPIO_STRENGTH_MED),
 };
 
 /* Initial PM8921 MPP configurations */
@@ -3064,6 +3072,8 @@ static __init void load_pm8921_gpios_from_dt(void)
 	if (!count)
 		goto out;
 
+	/* make space for additional WCD9xxx reset GPIO added below */
+	count++;
 	/* allocate the space */
 	pm8921_gpios = kmalloc(sizeof(struct pm8xxx_gpio_init) * count,
 			GFP_KERNEL);
@@ -3147,6 +3157,10 @@ static __init void load_pm8921_gpios_from_dt(void)
 			}
 		}
 	}
+
+	/* TABLA CODEC RESET - missing in DT */
+	pm8921_gpios[index++] = (struct pm8xxx_gpio_init)
+		PM8XXX_GPIO_OUTPUT_STRENGTH(34, 0, PM_GPIO_STRENGTH_MED);
 
 	BUG_ON(index != count);
 

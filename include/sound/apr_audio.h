@@ -59,8 +59,12 @@
 #define INT_FM_TX 0x3005		/* index = 29 */
 #define RT_PROXY_PORT_001_RX	0x2000    /* index = 30 */
 #define RT_PROXY_PORT_001_TX	0x2001    /* index = 31 */
+#define SECONDARY_PCM_RX 12			/* index = 32 */
+#define SECONDARY_PCM_TX 13			/* index = 33 */
+
 
 #define AFE_PORT_INVALID 0xFFFF
+#define SLIMBUS_EXTPROC_RX AFE_PORT_INVALID
 
 #define AFE_PORT_CMD_START 0x000100ca
 
@@ -224,7 +228,8 @@ struct afe_port_mi2s_cfg {
 				/* i2s stereo = 3 */
 	u16	ws;		/* 0, word select signal from external source */
 				/* 1, word select signal from internal source */
-	u16	reserved;
+	u16	format;	/* don't touch this field if it is not for */
+				/* AFE_PORT_CMD_I2S_CONFIG opcode */
 } __attribute__ ((packed));
 
 struct afe_port_hdmi_cfg {
@@ -272,6 +277,16 @@ struct afe_port_slimbus_cfg {
 	u16	reserved;
 } __packed;
 
+struct afe_port_slimbus_sch_cfg {
+	u16	slimbus_dev_id;		/* SLIMBUS Device id.*/
+	u16	bit_width;		/**  bit width of the samples, 16, 24.*/
+	u16	data_format;		/** data format.*/
+	u16	num_channels;		/** Number of channels.*/
+	u16	reserved;
+	/** Slave channel  mapping for respective channels.*/
+	u8	slave_ch_mapping[8];
+} __packed;
+
 struct afe_port_rtproxy_cfg {
 	u16	bitwidth;	/* 16,24,32 */
 	u16	interleaved;    /* interleaved = 1 */
@@ -284,16 +299,19 @@ struct afe_port_rtproxy_cfg {
 	int	num_ch;		/* 1 to 8 */
 } __packed;
 
-#define AFE_PORT_AUDIO_IF_CONFIG			0x000100d3
+#define AFE_PORT_AUDIO_IF_CONFIG 0x000100d3
+#define AFE_PORT_AUDIO_SLIM_SCH_CONFIG 0x000100e4
 #define AFE_PORT_MULTI_CHAN_HDMI_AUDIO_IF_CONFIG	0x000100D9
+#define AFE_PORT_CMD_I2S_CONFIG	0x000100E7
 
 union afe_port_config {
-	struct afe_port_pcm_cfg			pcm;
-	struct afe_port_mi2s_cfg		mi2s;
-	struct afe_port_hdmi_cfg		hdmi;
-	struct afe_port_hdmi_multi_ch_cfg	hdmi_multi_ch;
-	struct afe_port_slimbus_cfg		slimbus;
-	struct afe_port_rtproxy_cfg		rtproxy;
+	struct afe_port_pcm_cfg           pcm;
+	struct afe_port_mi2s_cfg          mi2s;
+	struct afe_port_hdmi_cfg          hdmi;
+	struct afe_port_hdmi_multi_ch_cfg hdmi_multi_ch;
+	struct afe_port_slimbus_cfg	  slimbus;
+	struct afe_port_slimbus_sch_cfg	  slim_sch;
+	struct afe_port_rtproxy_cfg       rtproxy;
 } __attribute__((packed));
 
 struct afe_audioif_config_command {
@@ -1105,6 +1123,7 @@ struct asm_stream_cmd_open_read_v2_1 {
 #define AC3_DECODER  0x00010BF6
 #define EAC3_DECODER 0x00010C3C
 #define DTS	0x00010D88
+#define DTS_LBR	0x00010DBB
 #define ATRAC	0x00010D89
 #define MAT	0x00010D8A
 #define G711_ALAW_FS 0x00010BF7
@@ -1122,6 +1141,13 @@ struct asm_stream_cmd_open_read_v2_1 {
 #define ASM_ENCDEC_SBCRATE         0x00010C13
 #define ASM_ENCDEC_IMMDIATE_DECODE 0x00010C14
 #define ASM_ENCDEC_CFG_BLK         0x00010C2C
+
+#define ASM_STREAM_CMD_OPEN_READ_COMPRESSED               0x00010D95
+struct asm_stream_cmd_open_read_compressed {
+	struct apr_hdr hdr;
+	u32            uMode;
+	u32            frame_per_buf;
+} __packed;
 
 #define ASM_STREAM_CMD_OPEN_WRITE                        0x00010BCA
 #define ASM_STREAM_CMD_OPEN_WRITE_V2_1                   0x00010DB1
@@ -1162,6 +1188,17 @@ struct adm_cmd_connect_afe_port {
 	u8	mode; /*mode represent the interface is for RX or TX*/
 	u8	session_id; /*ASM session ID*/
 	u16	afe_port_id;
+} __packed;
+
+#define ADM_CMD_CONNECT_AFE_PORT_V2 0x00010332
+
+struct adm_cmd_connect_afe_port_v2 {
+	struct apr_hdr     hdr;
+	u8	mode; /*mode represent the interface is for RX or TX*/
+	u8	session_id; /*ASM session ID*/
+	u16	afe_port_id;
+	u32	num_channels;
+	u32	sampleing_rate;
 } __packed;
 
 #define ASM_STREAM_CMD_SET_ENCDEC_PARAM                  0x00010C10
@@ -1319,6 +1356,14 @@ struct asm_stream_cmd_read{
 	u32	uid;
 } __attribute__((packed));
 
+#define ASM_DATA_CMD_READ_COMPRESSED                     0x00010DBC
+struct asm_stream_cmd_read_compressed {
+	struct apr_hdr     hdr;
+	u32	buf_add;
+	u32	buf_size;
+	u32	uid;
+} __packed;
+
 #define ASM_DATA_CMD_MEDIA_FORMAT_UPDATE                 0x00010BDC
 #define ASM_DATA_EVENT_ENC_SR_CM_NOTIFY                  0x00010BDE
 struct asm_stream_media_format_update{
@@ -1382,6 +1427,19 @@ struct asm_data_event_read_done{
 	u32            num_frames;
 	u32            id;
 } __attribute__((packed));
+
+#define ASM_DATA_EVENT_READ_COMPRESSED_DONE              0x00010DBD
+struct asm_data_event_read_compressed_done {
+	u32            status;
+	u32            buffer_add;
+	u32            enc_frame_size;
+	u32            offset;
+	u32            msw_ts;
+	u32            lsw_ts;
+	u32            flags;
+	u32            num_frames;
+	u32            id;
+} __packed;
 
 #define ASM_DATA_EVENT_SR_CM_CHANGE_NOTIFY               0x00010C65
 struct asm_data_event_sr_cm_change_notify {

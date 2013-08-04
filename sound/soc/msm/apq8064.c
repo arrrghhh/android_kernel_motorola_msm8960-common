@@ -58,6 +58,21 @@
 #define TABLA_MBHC_DEF_BUTTONS 3
 #define TABLA_MBHC_DEF_RLOADS 5
 
+/* Shared channel numbers for Slimbus ports that connect APQ to MDM. */
+enum {
+	SLIM_1_RX_1 = 145, /* BT-SCO and USB TX */
+	SLIM_1_TX_1 = 146, /* BT-SCO and USB RX */
+	SLIM_2_RX_1 = 147, /* HDMI RX */
+	SLIM_4_TX_1 = 148, /* In-call recording RX */
+	SLIM_4_TX_2 = 149, /* In-call recording RX */
+	SLIM_4_RX_1 = 150, /* In-call music delivery TX */
+};
+
+enum {
+	INCALL_REC_MONO,
+	INCALL_REC_STEREO,
+};
+
 static u32 top_spk_pamp_gpio  = PM8921_GPIO_PM_TO_SYS(18);
 static u32 bottom_spk_pamp_gpio = PM8921_GPIO_PM_TO_SYS(19);
 static int msm_spk_control;
@@ -68,6 +83,8 @@ static int msm_slim_0_tx_ch = 1;
 
 static int msm_btsco_rate = BTSCO_RATE_8KHZ;
 static int msm_btsco_ch = 1;
+
+static int rec_mode = INCALL_REC_MONO;
 
 static struct clk *codec_clk;
 static int clk_users;
@@ -324,10 +341,9 @@ static int msm_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 		if (clk_users != 1)
 			return 0;
 
-		codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
 		if (codec_clk) {
 			clk_set_rate(codec_clk, TABLA_EXT_CLK_RATE);
-			clk_enable(codec_clk);
+			clk_prepare_enable(codec_clk);
 			tabla_mclk_enable(codec, 1, dapm);
 		} else {
 			pr_err("%s: Error setting Tabla MCLK\n", __func__);
@@ -343,8 +359,7 @@ static int msm_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 			pr_debug("%s: disabling MCLK. clk_users = %d\n",
 					 __func__, clk_users);
 			tabla_mclk_enable(codec, 0, dapm);
-			clk_disable(codec_clk);
-			clk_put(codec_clk);
+			clk_disable_unprepare(codec_clk);
 		}
 	}
 	return 0;
@@ -364,10 +379,9 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 		if (clk_users != 1)
 			return 0;
 
-		codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
 		if (codec_clk) {
 			clk_set_rate(codec_clk, 12288000);
-			clk_enable(codec_clk);
+			clk_prepare_enable(codec_clk);
 			tabla_mclk_enable(w->codec, 1, true);
 
 		} else {
@@ -388,10 +402,9 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 		if (!clk_users) {
 			pr_debug("%s: disabling MCLK. clk_users = %d\n",
 					__func__, clk_users);
-
+			clk_disable_unprepare(codec_clk);
 			tabla_mclk_enable(w->codec, 0, true);
-			clk_disable(codec_clk);
-			clk_put(codec_clk);
+
 		}
 		break;
 	}
@@ -590,6 +603,23 @@ static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int msm_incall_rec_mode_get(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = rec_mode;
+	return 0;
+}
+
+static int msm_incall_rec_mode_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+
+	rec_mode = ucontrol->value.integer.value[0];
+	pr_debug("%s: rec_mode:%d\n", __func__, rec_mode);
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new tabla_msm_controls[] = {
 	SOC_ENUM_EXT("Speaker Function", msm_enum[0], msm_get_spk,
 		msm_set_spk),
@@ -604,6 +634,11 @@ static const struct snd_kcontrol_new int_btsco_rate_mixer_controls[] = {
 		msm_btsco_rate_get, msm_btsco_rate_put),
 };
 
+static const struct snd_kcontrol_new incall_rec_mode_mixer_controls[] = {
+	 SOC_SINGLE_EXT("Incall Rec Mode", SND_SOC_NOPM, 0, 1, 0,
+			msm_incall_rec_mode_get, msm_incall_rec_mode_put),
+};
+
 static int msm_btsco_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err = 0;
@@ -612,6 +647,19 @@ static int msm_btsco_init(struct snd_soc_pcm_runtime *rtd)
 	err = snd_soc_add_platform_controls(platform,
 			int_btsco_rate_mixer_controls,
 		ARRAY_SIZE(int_btsco_rate_mixer_controls));
+	if (err < 0)
+		return err;
+	return 0;
+}
+
+static int msm_incall_rec_init(struct snd_soc_pcm_runtime *rtd)
+{
+	int err = 0;
+	struct snd_soc_platform *platform = rtd->platform;
+
+	err = snd_soc_add_platform_controls(platform,
+			incall_rec_mode_mixer_controls,
+		ARRAY_SIZE(incall_rec_mode_mixer_controls));
 	if (err < 0)
 		return err;
 	return 0;
@@ -685,13 +733,177 @@ static void *def_tabla_mbhc_cal(void)
 	return tabla_cal;
 }
 
+static int msm_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret = 0;
+	unsigned int rx_ch[SLIM_MAX_RX_PORTS], tx_ch[SLIM_MAX_TX_PORTS];
+	unsigned int rx_ch_cnt = 0, tx_ch_cnt = 0;
+	unsigned int user_set_tx_ch = 0;
+
+	pr_debug("%s: ch=%d\n", __func__,
+					msm_slim_0_rx_ch);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		ret = snd_soc_dai_get_channel_map(codec_dai,
+				&tx_ch_cnt, tx_ch, &rx_ch_cnt , rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to get codec chan map\n", __func__);
+			goto end;
+		}
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, 0,
+				msm_slim_0_rx_ch, rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to set cpu chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(codec_dai, 0, 0,
+				msm_slim_0_rx_ch, rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to set codec channel map\n",
+								__func__);
+			goto end;
+		}
+	} else {
+
+		if (codec_dai->id  == 2)
+			user_set_tx_ch =  msm_slim_0_tx_ch;
+		else if (codec_dai->id  == 4)
+			user_set_tx_ch =  params_channels(params);
+		else if (codec_dai->id == 5) {
+			/* DAI 5 is used for external EC reference from codec.
+			 * Since Rx is fed as reference for EC, the config of
+			 * this DAI is based on that of the Rx path.
+			 */
+			user_set_tx_ch =  msm_slim_0_rx_ch;
+		}
+
+		pr_debug("%s: %s_tx_dai_id_%d_ch=%d\n", __func__,
+			codec_dai->name, codec_dai->id, user_set_tx_ch);
+
+		ret = snd_soc_dai_get_channel_map(codec_dai,
+				&tx_ch_cnt, tx_ch, &rx_ch_cnt , rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to get codec chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(cpu_dai,
+				msm_slim_0_tx_ch, tx_ch, 0 , 0);
+		if (ret < 0) {
+			pr_err("%s: failed to set cpu chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(codec_dai,
+				msm_slim_0_tx_ch, tx_ch, 0, 0);
+		if (ret < 0) {
+			pr_err("%s: failed to set codec channel map\n",
+								__func__);
+			goto end;
+		}
+
+
+	}
+end:
+	return ret;
+}
+
+static int msm_stubrx_init(struct snd_soc_pcm_runtime *rtd)
+{
+	rtd->pmdown_time = 0;
+	return 0;
+}
+
+
+static int msm_slimbus_1_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret = 0;
+	unsigned int rx_ch = SLIM_1_RX_1, tx_ch = SLIM_1_TX_1;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		pr_debug("%s: APQ BT/USB TX -> SLIMBUS_1_RX -> MDM TX shared ch %d\n",
+			__func__, rx_ch);
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, 0, 1, &rx_ch);
+		if (ret < 0) {
+			pr_err("%s: Erorr %d setting SLIM_1 RX channel map\n",
+				__func__, ret);
+
+			goto end;
+		}
+	} else {
+		pr_debug("%s: MDM RX -> SLIMBUS_1_TX -> APQ BT/USB Rx shared ch %d\n",
+			__func__, tx_ch);
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 1, &tx_ch, 0, 0);
+		if (ret < 0) {
+			pr_err("%s: Erorr %d setting SLIM_1 TX channel map\n",
+				__func__, ret);
+
+			goto end;
+		}
+	}
+
+end:
+	return ret;
+}
+
+static int msm_slimbus_4_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret = 0;
+	unsigned int rx_ch = SLIM_4_RX_1, tx_ch[2];
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		pr_debug("%s: APQ Incall Playback SLIMBUS_4_RX -> MDM TX shared ch %d\n",
+			__func__, rx_ch);
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, 0, 1, &rx_ch);
+		if (ret < 0) {
+			pr_err("%s: Erorr %d setting SLIM_4 RX channel map\n",
+				__func__, ret);
+
+		}
+	} else {
+		if (rec_mode == INCALL_REC_STEREO) {
+			tx_ch[0] = SLIM_4_TX_1;
+			tx_ch[1] = SLIM_4_TX_2;
+			ret = snd_soc_dai_set_channel_map(cpu_dai, 2,
+							tx_ch, 0, 0);
+		} else {
+			tx_ch[0] = SLIM_4_TX_1;
+			ret = snd_soc_dai_set_channel_map(cpu_dai, 1,
+							tx_ch, 0, 0);
+		}
+		pr_debug("%s: Incall Record shared tx_ch[0]:%d, tx_ch[1]:%d\n",
+			__func__, tx_ch[0], tx_ch[1]);
+
+		if (ret < 0) {
+			pr_err("%s: Erorr %d setting SLIM_4 TX channel map\n",
+				__func__, ret);
+
+		}
+	}
+
+	return ret;
+}
+
+
 static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 
-	pr_debug("%s()\n", __func__);
+	pr_debug("%s(), dev_name%s\n", __func__, dev_name(cpu_dai->dev));
 
 	/*if (machine_is_msm_liquid()) {
 		top_spk_pamp_gpio = (PM8921_GPIO_PM_TO_SYS(19));
@@ -732,6 +944,8 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		pr_err("failed to create new jack\n");
 		return err;
 	}
+
+	codec_clk = clk_get(cpu_dai->dev, "osr_clk");
 
 	err = tabla_hs_detect(codec, &mbhc_cfg);
 
@@ -846,6 +1060,19 @@ static int msm_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
+
+static int msm_proxy_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+			struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+	SNDRV_PCM_HW_PARAM_RATE);
+
+	pr_debug("%s()\n", __func__);
+	rate->min = rate->max = 48000;
+
+	return 0;
+}
+
 static int msm_aux_pcm_get_gpios(void)
 {
 	int ret = 0;
@@ -936,12 +1163,25 @@ static void msm_shutdown(struct snd_pcm_substream *substream)
 
 static struct snd_soc_ops msm_be_ops = {
 	.startup = msm_startup,
+	.hw_params = msm_hw_params,
 	.shutdown = msm_shutdown,
 };
 
 static struct snd_soc_ops msm_auxpcm_be_ops = {
 	.startup = msm_auxpcm_startup,
 	.shutdown = msm_auxpcm_shutdown,
+};
+
+static struct snd_soc_ops msm_slimbus_1_be_ops = {
+	.startup = msm_startup,
+	.hw_params = msm_slimbus_1_hw_params,
+	.shutdown = msm_shutdown,
+};
+
+static struct snd_soc_ops msm_slimbus_4_be_ops = {
+	.startup = msm_startup,
+	.hw_params = msm_slimbus_4_hw_params,
+	.shutdown = msm_shutdown,
 };
 
 /* Digital audio interface glue - connects codec <---> CPU */
@@ -1034,6 +1274,17 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_dai_name = "msm-stub-tx",
 		.platform_name  = "msm-pcm-afe",
 		.ignore_suspend = 1,
+	},
+	{
+		.name = "Voice Stub",
+		.stream_name = "Voice Stub",
+		.cpu_dai_name = "VOICE_STUB",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dsp_link = &fe_media,
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.be_id = MSM_FRONTEND_DAI_VOICE_STUB,
 	},
 	/* Backend DAI Links */
 	{
@@ -1131,6 +1382,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.no_codec = 1,
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
+		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
 	},
 	{
 		.name = LPASS_BE_AFE_PCM_TX,
@@ -1142,6 +1394,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.no_codec = 1,
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
+		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
 	},
 	/* AUX PCM Backend DAI Links */
 	{
@@ -1166,6 +1419,102 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AUXPCM_TX,
 		.be_hw_params_fixup = msm_auxpcm_be_params_fixup,
+	},
+	{
+		.name = LPASS_BE_STUB_RX,
+		.stream_name = "Stub Playback",
+		.cpu_dai_name = "msm-dai-stub",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "tabla_codec",
+		.codec_dai_name = "tabla_rx2",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_EXTPROC_RX,
+		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
+		.init = &msm_stubrx_init,
+		.ops = &msm_be_ops,
+	},
+	{
+		.name = LPASS_BE_STUB_TX,
+		.stream_name = "Stub Capture",
+		.cpu_dai_name = "msm-dai-stub",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "tabla_codec",
+		.codec_dai_name = "tabla_tx1",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_EXTPROC_TX,
+		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
+		.ops = &msm_be_ops,
+	},
+	{
+		.name = LPASS_BE_SLIMBUS_1_RX,
+		.stream_name = "Slimbus1 Playback",
+		.cpu_dai_name = "msm-dai-q6.16386",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-rx",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_RX,
+		.be_hw_params_fixup = msm_btsco_be_hw_params_fixup,
+		.ops = &msm_slimbus_1_be_ops,
+
+	},
+	{
+		.name = LPASS_BE_SLIMBUS_1_TX,
+		.stream_name = "Slimbus1 Capture",
+		.cpu_dai_name = "msm-dai-q6.16387",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-tx",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_TX,
+		.be_hw_params_fixup =  msm_btsco_be_hw_params_fixup,
+		.ops = &msm_slimbus_1_be_ops,
+	},
+
+	/* Incall Music Back End DAI Link */
+	{
+		.name = LPASS_BE_SLIMBUS_4_RX,
+		.stream_name = "Slimbus4 Playback",
+		.cpu_dai_name = "msm-dai-q6.16392",
+		.platform_name = "msm-pcm-routing",
+		.codec_name     = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-rx",
+		.no_pcm = 1,
+		.no_codec = 1,
+		.be_id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_slimbus_4_be_ops,
+	},
+	/* Incall Record Back End DAI Link */
+	{
+		.name = LPASS_BE_SLIMBUS_4_TX,
+		.stream_name = "Slimbus4 Capture",
+		.cpu_dai_name = "msm-dai-q6.16393",
+		.platform_name = "msm-pcm-routing",
+		.codec_name     = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-tx",
+		.no_pcm = 1,
+		.no_codec = 1,
+		.be_id = MSM_BACKEND_DAI_SLIMBUS_4_TX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.init = &msm_incall_rec_init,
+		.ops = &msm_slimbus_4_be_ops,
+	},
+	{
+		.name = LPASS_BE_STUB_1_TX,
+		.stream_name = "Stub1 Capture",
+		.cpu_dai_name = "msm-dai-stub",
+		.platform_name = "msm-pcm-routing",
+		.codec_name     = "tabla_codec",
+		.codec_dai_name	= "tabla_tx3",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_EXTPROC_EC_TX,
+		/* This BE is used for external EC reference from codec. Since
+		 * Rx is fed as reference for EC, the config of this DAI is
+		 * based on that of the Rx path.
+		 */
+		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
+		.ops = &msm_be_ops,
 	},
 };
 

@@ -16,8 +16,9 @@
 #include <linux/mfd/pm8xxx/pm8921.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/pm8xxx/pm8921.h>
-#include <linux/mfd/wcd9310/registers.h>
-#include <linux/mfd/wcd9310/core.h>
+#include <linux/mfd/wcd9xxx/wcd9310_registers.h>
+#include <linux/mfd/wcd9xxx/core.h>
+#include <linux/mfd/wcd9xxx/pdata.h>
 #include <linux/slab.h>
 #include <sound/core.h>
 #include <sound/soc.h>
@@ -27,8 +28,6 @@
 #include <sound/jack.h>
 #include <asm/mach-types.h>
 #include <mach/socinfo.h>
-#include <linux/mfd/wcd9310/core.h>
-#include <linux/mfd/wcd9310/pdata.h>
 #include "msm-pcm-routing.h"
 #include "../codecs/wcd9310.h"
 #include <linux/emu-accy.h>
@@ -45,8 +44,8 @@
 #define msm8960_SLIM_0_RX_MAX_CHANNELS		2
 #define msm8960_SLIM_0_TX_MAX_CHANNELS		4
 
-#define BTSCO_RATE_8KHZ 8000
-#define BTSCO_RATE_16KHZ 16000
+#define SAMPLE_RATE_8KHZ 8000
+#define SAMPLE_RATE_16KHZ 16000
 
 #define BOTTOM_SPK_AMP_POS	0x1
 #define BOTTOM_SPK_AMP_NEG	0x2
@@ -84,8 +83,10 @@ static int msm8960_slim_0_rx_ch = 1;
 static int msm8960_slim_0_tx_ch = 1;
 static int msm8960_mic_on;
 
-static int msm8960_btsco_rate = BTSCO_RATE_8KHZ;
+static int msm8960_btsco_rate = SAMPLE_RATE_8KHZ;
 static int msm8960_btsco_ch = 1;
+
+static int msm8960_auxpcm_rate = SAMPLE_RATE_8KHZ;
 
 static struct clk *codec_clk;
 static int clk_users;
@@ -406,10 +407,9 @@ static int msm8960_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 		clk_users++;
 		pr_debug("%s: clk_users = %d\n", __func__, clk_users);
 		if (clk_users == 1) {
-			codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
 			if (codec_clk) {
 				clk_set_rate(codec_clk, TABLA_EXT_CLK_RATE);
-				clk_enable(codec_clk);
+				clk_prepare_enable(codec_clk);
 				tabla_mclk_enable(codec, 1, dapm);
 			} else {
 				pr_err("%s: Error setting Tabla MCLK\n",
@@ -426,8 +426,7 @@ static int msm8960_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 				pr_debug("%s: disabling MCLK. clk_users = %d\n",
 					 __func__, clk_users);
 				tabla_mclk_enable(codec, 0, dapm);
-				clk_disable(codec_clk);
-				clk_put(codec_clk);
+				clk_disable_unprepare(codec_clk);
 			}
 		} else {
 			pr_err("%s: Error releasing Tabla MCLK\n", __func__);
@@ -566,6 +565,11 @@ static const struct soc_enum msm8960_btsco_enum[] = {
 		SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
 };
 
+static const char *auxpcm_rate_text[] = {"rate_8000", "rate_16000"};
+static const struct soc_enum msm8960_auxpcm_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, auxpcm_rate_text),
+};
+
 static int msm8960_slim_0_rx_ch_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -617,16 +621,46 @@ static int msm8960_btsco_rate_put(struct snd_kcontrol *kcontrol,
 {
 	switch (ucontrol->value.integer.value[0]) {
 	case 0:
-		msm8960_btsco_rate = BTSCO_RATE_8KHZ;
+		msm8960_btsco_rate = SAMPLE_RATE_8KHZ;
 		break;
 	case 1:
-		msm8960_btsco_rate = BTSCO_RATE_16KHZ;
+		msm8960_btsco_rate = SAMPLE_RATE_16KHZ;
 		break;
 	default:
-		msm8960_btsco_rate = BTSCO_RATE_8KHZ;
+		msm8960_btsco_rate = SAMPLE_RATE_8KHZ;
 		break;
 	}
 	pr_debug("%s: msm8960_btsco_rate = %d\n", __func__, msm8960_btsco_rate);
+	return 0;
+}
+
+static int msm8960_auxpcm_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm8960_auxpcm_rate  = %d", __func__,
+		msm8960_auxpcm_rate);
+	ucontrol->value.integer.value[0] = msm8960_auxpcm_rate;
+	return 0;
+}
+
+static int msm8960_auxpcm_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+	case 0:
+		msm8960_auxpcm_rate = SAMPLE_RATE_8KHZ;
+		break;
+	case 1:
+		msm8960_auxpcm_rate = SAMPLE_RATE_16KHZ;
+		break;
+	default:
+		msm8960_auxpcm_rate = SAMPLE_RATE_8KHZ;
+		break;
+	}
+	pr_debug("%s: msm8960_auxpcm_rate = %d"
+		"ucontrol->value.integer.value[0] = %d\n", __func__,
+		msm8960_auxpcm_rate,
+		(int)ucontrol->value.integer.value[0]);
 	return 0;
 }
 
@@ -644,6 +678,11 @@ static const struct snd_kcontrol_new int_btsco_rate_mixer_controls[] = {
 		msm8960_btsco_rate_get, msm8960_btsco_rate_put),
 };
 
+static const struct snd_kcontrol_new auxpcm_rate_mixer_controls[] = {
+	SOC_ENUM_EXT("AUX PCM SampleRate", msm8960_auxpcm_enum[0],
+		msm8960_auxpcm_rate_get, msm8960_auxpcm_rate_put),
+};
+
 static int msm8960_btsco_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err = 0;
@@ -652,6 +691,19 @@ static int msm8960_btsco_init(struct snd_soc_pcm_runtime *rtd)
 	err = snd_soc_add_platform_controls(platform,
 			int_btsco_rate_mixer_controls,
 		ARRAY_SIZE(int_btsco_rate_mixer_controls));
+	if (err < 0)
+		return err;
+	return 0;
+}
+
+static int msm8960_auxpcm_init(struct snd_soc_pcm_runtime *rtd)
+{
+	int err = 0;
+	struct snd_soc_platform *platform = rtd->platform;
+
+	err = snd_soc_add_platform_controls(platform,
+		auxpcm_rate_mixer_controls,
+		ARRAY_SIZE(auxpcm_rate_mixer_controls));
 	if (err < 0)
 		return err;
 	return 0;
@@ -734,13 +786,74 @@ static void *def_tabla_mbhc_cal(void)
 	return tabla_cal;
 }
 
+static int msm8960_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret = 0;
+	unsigned int rx_ch[SLIM_MAX_RX_PORTS], tx_ch[SLIM_MAX_TX_PORTS];
+	unsigned int rx_ch_cnt = 0, tx_ch_cnt = 0;
+
+	pr_debug("%s: ch=%d\n", __func__,
+					msm8960_slim_0_rx_ch);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		ret = snd_soc_dai_get_channel_map(codec_dai,
+				&tx_ch_cnt, tx_ch, &rx_ch_cnt , rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to get codec chan map\n", __func__);
+			goto end;
+		}
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, 0,
+				msm8960_slim_0_rx_ch, rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to set cpu chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(codec_dai, 0, 0,
+				msm8960_slim_0_rx_ch, rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to set codec channel map\n",
+								__func__);
+			goto end;
+		}
+	} else {
+		ret = snd_soc_dai_get_channel_map(codec_dai,
+				&tx_ch_cnt, tx_ch, &rx_ch_cnt , rx_ch);
+		if (ret < 0) {
+			pr_err("%s: failed to get codec chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(cpu_dai,
+				msm8960_slim_0_tx_ch, tx_ch, 0 , 0);
+		if (ret < 0) {
+			pr_err("%s: failed to set cpu chan map\n", __func__);
+			goto end;
+		}
+		ret = snd_soc_dai_set_channel_map(codec_dai,
+				msm8960_slim_0_tx_ch, tx_ch, 0, 0);
+		if (ret < 0) {
+			pr_err("%s: failed to set codec channel map\n",
+								__func__);
+			goto end;
+		}
+
+
+	}
+end:
+	return ret;
+}
+
 static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	u8 tabla_version;
-	struct tabla_pdata *pdata = dev_get_platdata(codec->dev->parent);
+	struct wcd9xxx_pdata *pdata = dev_get_platdata(codec->dev->parent);
 	struct pm_gpio jack_gpio_cfg = {
 		.direction = PM_GPIO_DIR_IN,
 		.pull = PM_GPIO_PULL_NO,
@@ -749,7 +862,7 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		.inv_int_pol = 0,
 	};
 
-	pr_debug("%s()\n", __func__);
+	pr_debug("%s(), dev_name%s\n", __func__, dev_name(cpu_dai->dev));
 
 	if (machine_is_msm8960_liquid()) {
 		top_spk_pamp_gpio = (PM8921_GPIO_PM_TO_SYS(19));
@@ -801,6 +914,8 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		pr_err("failed to create new jack\n");
 		return err;
 	}
+
+	codec_clk = clk_get(cpu_dai->dev, "osr_clk");
 
 	if (pdata->hs_detect_gpio_enable) {
 		mbhc_cfg.gpio = PM8921_GPIO_PM_TO_SYS(JACK_DETECT_GPIO);
@@ -942,9 +1057,20 @@ static int msm8960_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *channels = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
-	/* PCM only supports mono output with 8khz sample rate */
-	rate->min = rate->max = 8000;
+	rate->min = rate->max = msm8960_auxpcm_rate;
+	/* PCM only supports mono output */
 	channels->min = channels->max = 1;
+
+	return 0;
+}
+static int msm8960_proxy_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+			struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+	SNDRV_PCM_HW_PARAM_RATE);
+
+	pr_debug("%s()\n", __func__);
+	rate->min = rate->max = 48000;
 
 	return 0;
 }
@@ -1038,6 +1164,7 @@ static void msm8960_shutdown(struct snd_pcm_substream *substream)
 
 static struct snd_soc_ops msm8960_be_ops = {
 	.startup = msm8960_startup,
+	.hw_params = msm8960_hw_params,
 	.shutdown = msm8960_shutdown,
 };
 
@@ -1247,6 +1374,7 @@ static struct snd_soc_dai_link msm8960_dai_common[] = {
 		.no_codec = 1,
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
+		.be_hw_params_fixup = msm8960_proxy_be_hw_params_fixup,
 	},
 	{
 		.name = LPASS_BE_AFE_PCM_TX,
@@ -1258,6 +1386,7 @@ static struct snd_soc_dai_link msm8960_dai_common[] = {
 		.no_codec = 1,
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
+		.be_hw_params_fixup = msm8960_proxy_be_hw_params_fixup,
 	},
 	/* AUX PCM Backend DAI Links */
 	{
@@ -1267,6 +1396,7 @@ static struct snd_soc_dai_link msm8960_dai_common[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
+		.init = &msm8960_auxpcm_init,
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AUXPCM_RX,
 		.be_hw_params_fixup = msm8960_auxpcm_be_params_fixup,

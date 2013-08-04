@@ -933,7 +933,7 @@ int adm_matrix_map(int session_id, int path, int num_copps,
 		pr_debug("%s: port_id[%d]: %d, index: %d\n", __func__, i,
 			 port_id[i], tmp);
 
-		if ((tmp >= 0) && (tmp < AFE_MAX_PORTS))
+		if (tmp >= 0 && tmp < AFE_MAX_PORTS)
 			route.session[0].copp_id[i] =
 					atomic_read(&this_adm.copp_id[tmp]);
 	}
