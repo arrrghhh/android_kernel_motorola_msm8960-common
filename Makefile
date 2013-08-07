@@ -353,8 +353,9 @@ MODFLAGS        = -DMODULE \
                   -mcpu=cortex-a15 \
 		  -fgcse-las \
 		  -fpredictive-commoning \
-                  -O3
-                  -fno-pic
+                  -O3 \
+                  -fno-pic \
+                  -munaligned-access
 
 CFLAGS_MODULE   = $(MODFLAGS)
 AFLAGS_MODULE   = $(MODFLAGS)
@@ -364,7 +365,8 @@ CFLAGS_KERNEL   = -mfpu=neon-vfpv4 \
                   -mcpu=cortex-a15 \
 		  -fgcse-las \
 		  -fpredictive-commoning \
-                  -O2
+                  -O2 \
+                  -munaligned-access
 
 ifeq ($(ENABLE_GRAPHITE),true)
 CFLAGS_KERNEL	+= -fgraphite -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
