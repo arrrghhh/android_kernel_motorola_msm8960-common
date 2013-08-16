@@ -282,17 +282,10 @@ wl_cfgp2p_unregister_ndev(struct wl_priv *wl);
 #define IS_GAS_REQ(frame, len) (wl_cfgp2p_is_gas_action(frame, len) && \
 					((frame->action == P2PSD_ACTION_ID_GAS_IREQ) || \
 					(frame->action == P2PSD_ACTION_ID_GAS_CREQ)))
-<<<<<<< HEAD
-#define IS_P2P_PUB_ACT_REQ(frame, len) (wl_cfgp2p_is_pub_action(frame, len) && \
-						((frame->subtype == P2P_PAF_GON_REQ) || \
-						(frame->subtype == P2P_PAF_INVITE_REQ) || \
-						(frame->subtype == P2P_PAF_PROVDIS_REQ)))
-=======
 #define IS_P2P_PUB_ACT_REQ(frame, p2p_ie, len) (wl_cfgp2p_is_pub_action(frame, len) && \
 						((frame->subtype == P2P_PAF_GON_REQ) || \
 						(frame->subtype == P2P_PAF_INVITE_REQ) || \
 						((frame->subtype == P2P_PAF_PROVDIS_REQ) && IS_PROV_DISC_WITHOUT_GROUP_ID(p2p_ie, len))))
->>>>>>> android-3.0
 #define IS_P2P_SOCIAL(ch) ((ch == SOCIAL_CHAN_1) || (ch == SOCIAL_CHAN_2) || (ch == SOCIAL_CHAN_3))
 #define IS_P2P_SSID(ssid) (memcmp(ssid, WL_P2P_WILDCARD_SSID, WL_P2P_WILDCARD_SSID_LEN) == 0)
 #endif				/* _wl_cfgp2p_h_ */

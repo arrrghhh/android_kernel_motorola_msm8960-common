@@ -72,6 +72,13 @@ enum ion_heap_type {
 
 enum ion_heap_ids {
 	INVALID_HEAP_ID = -1,
+	/* In a system with the "Mini Ion Upgrade" (such as this one)
+	 * the heap_mask and caching flag end up sharing a spot in
+	 * ion_allocation_data.flags. We should make sure to never use
+	 * the 0th bit for a heap because that's where the caching bit
+	 * ends up.
+	 */
+	ION_BOGUS_HEAP_DO_NOT_USE = 0,
 	ION_CP_MM_HEAP_ID = 8,
 	ION_CP_MFC_HEAP_ID = 12,
 	ION_CP_WB_HEAP_ID = 16, /* 8660 only */
@@ -692,7 +699,8 @@ struct ion_allocation_data {
 	unsigned int flags;
 	struct ion_handle *handle;
 };
-struct ion_allocation_data_old {
+
+struct ion_allocation_data_compat {
 	size_t len;
 	size_t align;
 	unsigned int flags;
@@ -779,8 +787,9 @@ struct ion_flag_data {
  */
 #define ION_IOC_ALLOC		_IOWR(ION_IOC_MAGIC, 0, \
 				      struct ion_allocation_data)
-#define ION_IOC_ALLOC_OLD		_IOWR(ION_IOC_MAGIC, 0, \
-				      struct ion_allocation_data_old)
+
+#define ION_IOC_ALLOC_COMPAT _IOWR(ION_IOC_MAGIC, 0, \
+				      struct ion_allocation_data_compat)
 
 /**
  * DOC: ION_IOC_FREE - free memory
@@ -818,7 +827,8 @@ struct ion_flag_data {
  * filed set to the corresponding opaque handle.
  */
 #define ION_IOC_IMPORT		_IOWR(ION_IOC_MAGIC, 5, struct ion_fd_data)
-#define ION_IOC_IMPORT_OLD		_IOWR(ION_IOC_MAGIC, 5, int)
+
+#define ION_IOC_IMPORT_COMPAT	_IOWR(ION_IOC_MAGIC, 5, int)
 
 /**
  * DOC: ION_IOC_CUSTOM - call architecture specific ion ioctl
@@ -834,28 +844,32 @@ struct ion_flag_data {
  *
  * Clean the caches of the handle specified.
  */
-#define ION_IOC_CLEAN_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 7, \
-                                                struct ion_flush_data)
 #define ION_IOC_CLEAN_CACHES	_IOWR(ION_IOC_MAGIC, 20, \
 						struct ion_flush_data)
+#define ION_IOC_CLEAN_CACHES_COMPAT	_IOWR(ION_IOC_MAGIC, 7, \
+						struct ion_flush_data)
+
 /**
  * DOC: ION_MSM_IOC_INV_CACHES - invalidate the caches
  *
  * Invalidate the caches of the handle specified.
  */
-#define ION_IOC_INV_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 8, \
-                                                struct ion_flush_data)
 #define ION_IOC_INV_CACHES	_IOWR(ION_IOC_MAGIC, 21, \
 						struct ion_flush_data)
+
+#define ION_IOC_INV_CACHES_COMPAT	_IOWR(ION_IOC_MAGIC, 8, \
+					    struct ion_flush_data)
+
 /**
  * DOC: ION_MSM_IOC_CLEAN_CACHES - clean and invalidate the caches
  *
  * Clean and invalidate the caches of the handle specified.
  */
-#define ION_IOC_CLEAN_INV_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 9, \
-                                                struct ion_flush_data)
 #define ION_IOC_CLEAN_INV_CACHES	_IOWR(ION_IOC_MAGIC, 22, \
 						struct ion_flush_data)
+
+#define ION_IOC_CLEAN_INV_CACHES_COMPAT	_IOWR(ION_IOC_MAGIC, 9, \
+					    struct ion_flush_data)
 
 /**
  * DOC: ION_IOC_GET_FLAGS - get the flags of the handle
@@ -863,11 +877,11 @@ struct ion_flag_data {
  * Gets the flags of the current handle which indicate cachability,
  * secure state etc.
  */
-#define ION_IOC_GET_FLAGS_OLD		_IOWR(ION_IOC_MAGIC, 10, \
-						struct ion_flag_data)
 #define ION_IOC_GET_FLAGS		_IOWR(ION_IOC_MAGIC, 23, \
 						struct ion_flag_data)
 
+#define ION_IOC_GET_FLAGS_COMPAT _IOWR(ION_IOC_MAGIC, 10, \
+					    struct ion_flag_data)
 
 /**
  * DOC: ION_IOC_SYNC - BOGUS
