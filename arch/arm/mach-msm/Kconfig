@@ -704,6 +704,12 @@ config MACH_MSM8960_MMI
 	help
 	  Support for Motorola Mobility MSM8960 devices.
 
+config MACH_MSM8960_MMI_SOLSTICE
+	depends on MACH_MSM8960_MMI
+	bool "XT901/Solistice Support"
+	help
+	  Support for Motorola Mobility Solstice device.
+
 config MMI_ENABLE_RTC
 	depends on MACH_MSM8960_MMI
        bool "MMI Enable RTC"
