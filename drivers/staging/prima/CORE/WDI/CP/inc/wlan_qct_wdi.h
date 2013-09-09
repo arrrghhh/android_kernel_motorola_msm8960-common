@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -135,6 +135,10 @@ of NV fragment is nt possbile.The next multiple of 1Kb is 3K */
     - it should be large enough to allow any other failure mechanism to kick
       in before we get to a timeout (ms units)*/
 #define WDI_RESPONSE_TIMEOUT   10000
+
+/* SSR timeout - If Riva initiated SSR doesn't happen during this time, then the
+ * Apps initiated SSR will be performed */
+#define WDI_SSR_TIMEOUT       5000
 
 #define WDI_SET_POWER_STATE_TIMEOUT  10000 /* in msec a very high upper limit */
 
@@ -8210,6 +8214,41 @@ WDI_SetPowerParamsReq
   WDI_SetPowerParamsReqParamsType* pwdiPowerParamsReqParams,
   WDI_SetPowerParamsCb             wdiPowerParamsCb,
   void*                            pUserData
+);
+
+/**
+ @brief WDI_TransportChannelDebug -
+    Display DXE Channel debugging information
+    User may request to display DXE channel snapshot
+    Or if host driver detects any abnormal stcuk may display
+
+ @param  displaySnapshot : Dispaly DXE snapshot option
+ @param  enableStallDetect : Enable stall detect feature
+                        This feature will take effect to data performance
+                        Not integrate till fully verification
+ @see
+ @return none
+*/
+void WDI_TransportChannelDebug
+(
+   wpt_boolean  displaySnapshot,
+   wpt_boolean  toggleStallDetect
+);
+
+/**
+ @brief WDI_SsrTimerCB
+    Callback function for SSR timer, if this is called then the graceful
+    shutdown for Riva did not happen.
+
+ @param  pUserData : user data to timer
+
+ @see
+ @return none
+*/
+void
+WDI_SsrTimerCB
+(
+  void *pUserData
 );
 
 #ifdef __cplusplus

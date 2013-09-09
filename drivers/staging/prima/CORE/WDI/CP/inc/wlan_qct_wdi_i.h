@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -999,6 +999,9 @@ typedef struct
 
   /*version of the PNO implementation in RIVA*/
   wpt_uint8                   wdiPNOVersion;
+
+  /*SSR timer*/
+  wpt_timer                   ssrTimer;
 }WDI_ControlBlockType; 
 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -6335,3 +6335,21 @@ eHalStatus sme_GetCurrentCountryCode(tHalHandle hHal, tANI_U8 *pCountry)
     return csrGetCurrentCountryCode(pMac, pCountry);
 }
 
+/* ---------------------------------------------------------------------------
+    \fn sme_transportDebug
+    \brief  Dynamically monitoring Transport channels
+            Private IOCTL will querry transport channel status if driver loaded
+    \param  displaySnapshot Dispaly transport cahnnel snapshot option
+    \param  toggleStallDetect Enable stall detect feature
+                              This feature will take effect to data performance
+                              Not integrate till fully verification
+    \- return NONE
+    -------------------------------------------------------------------------*/
+void sme_transportDebug
+(
+   v_BOOL_t  displaySnapshot,
+   v_BOOL_t  toggleStallDetect
+)
+{
+   WDA_TransportChannelDebug(displaySnapshot, toggleStallDetect);
+}

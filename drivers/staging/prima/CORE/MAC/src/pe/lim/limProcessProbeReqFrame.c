@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -424,6 +424,17 @@ limProcessProbeReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession 
         // Don't send probe responses if disabled
         if (pMac->lim.gLimProbeRespDisableFlag)
             break;
+
+#ifdef WLAN_FEATURE_P2P
+        // Don't send probe response if P2P go is scanning till scan come to idle state. 
+        if((psessionEntry->pePersona == VOS_P2P_GO_MODE) && ((pMac->lim.gpLimRemainOnChanReq )
+                                  || (pMac->lim.gLimHalScanState != eLIM_HAL_IDLE_SCAN_STATE)))
+        {
+           limLog(pMac, LOG3,
+              FL("While GO is scanning, don't send probe response on diff channel\n"));
+           break;
+        }
+#endif
 
        pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
 

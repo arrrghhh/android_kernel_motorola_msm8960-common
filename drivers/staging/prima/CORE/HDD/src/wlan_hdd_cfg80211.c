@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -49,7 +49,7 @@
 
  07/06/10     Kumar Deepak   Implemented cfg80211 callbacks for ANDROID
               Ganesh K       
-  ==========================================================================*/
+==========================================================================*/
 
 #ifdef CONFIG_CFG80211
 
@@ -428,7 +428,9 @@ int wlan_hdd_cfg80211_register(struct device *dev,
 
     wiphy->mgmt_stypes = wlan_hdd_txrx_stypes;
 
-    wiphy->flags |= WIPHY_FLAG_CUSTOM_REGULATORY;
+    wiphy->flags |= WIPHY_FLAG_CUSTOM_REGULATORY
+                 | WIPHY_FLAG_HAVE_AP_SME
+                 | WIPHY_FLAG_AP_PROBE_RESP_OFFLOAD;
 
     wiphy->max_scan_ssids = MAX_SCAN_SSID; 
     
@@ -1184,38 +1186,47 @@ static int wlan_hdd_cfg80211_start_bss(hdd_adapter_t *pHostapdAdapter,
 
     pIe = wlan_hdd_cfg80211_get_ie_ptr(pBeacon->tail, pBeacon->tail_len, 
                                        WLAN_EID_COUNTRY);
-    if(pIe)
-    { 
-        tANI_BOOLEAN restartNeeded;
-        tHalHandle hHal = WLAN_HDD_GET_HAL_CTX(pHostapdAdapter);
 
-        pConfig->ieee80211d = 1;
-        vos_mem_copy(pConfig->countryCode, &pIe[2], 3);
-        sme_setRegInfo(hHal, pConfig->countryCode);
-        sme_ResetCountryCodeInformation(hHal, &restartNeeded);
-        /*
-         * If auto channel is configured i.e. channel is 0,
-         * so skip channel validation.
-        */
-        if( AUTO_CHANNEL_SELECT != pConfig->channel )
+    if (pHostapdAdapter->device_mode == WLAN_HDD_SOFTAP)
+    {
+        pIe = wlan_hdd_cfg80211_get_ie_ptr(pBeacon->tail, pBeacon->tail_len,
+                                       WLAN_EID_COUNTRY);
+        if(pIe)
         {
-            if(VOS_STATUS_SUCCESS != wlan_hdd_validate_operation_channel(pHostapdAdapter,pConfig->channel))
+            tANI_BOOLEAN restartNeeded;
+            tHalHandle hHal = WLAN_HDD_GET_HAL_CTX(pHostapdAdapter);
+            pConfig->ieee80211d = 1;
+            vos_mem_copy(pConfig->countryCode, &pIe[2], 3);
+            sme_setRegInfo(hHal, pConfig->countryCode);
+            sme_ResetCountryCodeInformation(hHal, &restartNeeded);
+            /*
+             * If auto channel is configured i.e. channel is 0,
+             * so skip channel validation.
+             */
+            if( AUTO_CHANNEL_SELECT != pConfig->channel )
             {
-                hddLog(VOS_TRACE_LEVEL_ERROR,
-                         "%s: Invalid Channel [%d] \n", __func__, pConfig->channel);
-                return -EINVAL;
+                if(VOS_STATUS_SUCCESS != wlan_hdd_validate_operation_channel(pHostapdAdapter,pConfig->channel))
+                {
+                    hddLog(VOS_TRACE_LEVEL_ERROR,
+                            "%s: Invalid Channel [%d] \n", __func__, pConfig->channel);
+                    return -EINVAL;
+                }
             }
         }
+        else
+        {
+            pConfig->ieee80211d = 0;
+        }
     }
-    else 
+    else
     {
         pConfig->ieee80211d = 0;
     }
     pConfig->authType = eSAP_AUTO_SWITCH;
 
     capab_info = pMgmt_frame->u.beacon.capab_info;
-    
-    pConfig->privacy = (pMgmt_frame->u.beacon.capab_info & 
+
+    pConfig->privacy = (pMgmt_frame->u.beacon.capab_info &
                         WLAN_CAPABILITY_PRIVACY) ? VOS_TRUE : VOS_FALSE;
 
     (WLAN_HDD_GET_AP_CTX_PTR(pHostapdAdapter))->uPrivacy = pConfig->privacy;
@@ -1865,6 +1876,7 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
 #else
                 pAdapter->device_mode = WLAN_HDD_SOFTAP;
 #endif
+
                 hdd_set_ap_ops( pAdapter->dev );
 
                 status = hdd_init_ap_mode(pAdapter);
@@ -1911,6 +1923,8 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
            case NL80211_IFTYPE_P2P_CLIENT:
 #endif
            case NL80211_IFTYPE_ADHOC:
+                hdd_stop_adapter( pHddCtx, pAdapter );
+                hdd_deinit_adapter( pHddCtx, pAdapter );
                 wdev->iftype = type;
 #ifdef WLAN_FEATURE_P2P
                 pAdapter->device_mode = (type == NL80211_IFTYPE_STATION) ?
@@ -1918,8 +1932,6 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
 #endif
                 hdd_set_conparam(0);
                 pHddCtx->change_iface = type;
-                hdd_stop_adapter( pHddCtx, pAdapter );
-                hdd_deinit_adapter( pHddCtx, pAdapter );
                 memset(&pAdapter->sessionCtx, 0, sizeof(pAdapter->sessionCtx));
                 hdd_set_station_ops( pAdapter->dev );
                 status = hdd_init_station_mode( pAdapter );
@@ -3319,6 +3331,15 @@ int wlan_hdd_cfg80211_scan( struct wiphy *wiphy, struct net_device *dev,
                   "%s:Unloading/Loading in Progress. Ignore!!!", __func__);
         return -EAGAIN;
     }
+    //Don't Allow Scan and return busy if Remain On 
+    //Channel and action frame is pending
+    //Otherwise Cancel Remain On Channel and allow Scan
+    //If no action frame pending
+    if(0 != wlan_hdd_check_remain_on_channel(pAdapter))
+    {
+        hddLog(VOS_TRACE_LEVEL_INFO, "%s: Remain On Channel Pending", __func__);
+        return -EBUSY;
+    }
 
     vos_mem_zero( &scanRequest, sizeof(scanRequest));
 
@@ -3336,7 +3357,7 @@ int wlan_hdd_cfg80211_scan( struct wiphy *wiphy, struct net_device *dev,
             request->n_ssids = -1;
         }
 
-        if (0 < request->n_ssids)
+        if ((request->ssids) && (0 < request->n_ssids))
         {
             tCsrSSIDInfo *SsidInfo;
             int j;
@@ -3378,11 +3399,11 @@ int wlan_hdd_cfg80211_scan( struct wiphy *wiphy, struct net_device *dev,
         }
         else if(0 == request->n_ssids)
         {
-             /* Set passive scan when n_ssids = 0 is sent from Supplicant.
-                  Supplicant expect the driver to do passive scan */
-             scanRequest.scanType = eSIR_PASSIVE_SCAN;
-             scanRequest.minChnTime = cfg_param->nPassiveMinChnTime;
-             scanRequest.maxChnTime = cfg_param->nPassiveMaxChnTime;
+            /* Set passive scan when n_ssids = 0 is sent from Supplicant.
+                          Supplicant expect the driver to do passive scan */
+            scanRequest.scanType = eSIR_PASSIVE_SCAN;
+            scanRequest.minChnTime = cfg_param->nPassiveMinChnTime;
+            scanRequest.maxChnTime = cfg_param->nPassiveMaxChnTime;
         }
         else
         {

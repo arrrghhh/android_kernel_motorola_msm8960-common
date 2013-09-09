@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1272,7 +1272,7 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
    
       skb->dev = pAdapter->dev;
       skb->protocol = eth_type_trans(skb, skb->dev);
-      skb->ip_summed = CHECKSUM_UNNECESSARY;
+      skb->ip_summed = CHECKSUM_NONE;
       ++pAdapter->hdd_stats.hddTxRxStats.rxPackets;
       ++pAdapter->stats.rx_packets;
       pAdapter->stats.rx_bytes += skb->len;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -326,6 +326,28 @@ limSendSmeJoinReassocRsp(tpAniSirGlobal pMac, tANI_U16 msgType,
 #ifdef WLAN_FEATURE_VOWIFI_11R_DEBUG
             PELOG1(limLog(pMac, LOG1, FL("AssocRsp=%d\n"), psessionEntry->assocRspLen);)
 #endif
+        }
+        else
+        {
+
+            if(psessionEntry->beacon != NULL)
+            {
+                palFreeMemory(pMac->hHdd, psessionEntry->beacon);
+                psessionEntry->beacon = NULL;
+            }
+
+            if(psessionEntry->assocReq != NULL)
+            {
+                palFreeMemory(pMac->hHdd, psessionEntry->assocReq);
+                psessionEntry->assocReq = NULL;
+            }
+
+            if(psessionEntry->assocRsp != NULL)
+            {
+                palFreeMemory(pMac->hHdd, psessionEntry->assocRsp);
+                psessionEntry->assocRsp = NULL;
+            }
+
         }
     }
 

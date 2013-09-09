@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -359,6 +359,7 @@ void pmmExitBmpsRequestHandler(tpAniSirGlobal pMac, tpExitBmpsInfo pExitBmpsInfo
 
         respStatus = eSIR_SME_INVALID_PMM_STATE;
         pmmBmpsUpdateInvalidStateCnt(pMac);
+        palFreeMemory( pMac->hHdd, (tANI_U8 *) pExitBmpsInfo);
         goto failure;
     }
     return;

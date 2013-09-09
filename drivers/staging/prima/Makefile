@@ -28,10 +28,9 @@ endif
 EXTRA_CFLAGS += -Wno-enum-compare -Wno-unused-variable -Wno-implicit-function-declaration
 
 ############## HDD ###################
-HDD_SRC_DIR := CORE/HDD/src
 HDD_INC := $(WLAN_DIR)/HDD/inc/
-HDD_OBJS := \
-			$(HDD_SRC_DIR)/wlan_hdd_main.o  \
+HDD_SRC_DIR := CORE/HDD/src
+HDD_OBJS := $(HDD_SRC_DIR)/wlan_hdd_main.o  \
             $(HDD_SRC_DIR)/wlan_hdd_scan.o  \
             $(HDD_SRC_DIR)/wlan_hdd_assoc.o  \
             $(HDD_SRC_DIR)/wlan_hdd_mib.o  \
@@ -40,8 +39,9 @@ HDD_OBJS := \
             $(HDD_SRC_DIR)/wlan_hdd_dp_utils.o \
             $(HDD_SRC_DIR)/wlan_hdd_early_suspend.o  \
             $(HDD_SRC_DIR)/wlan_hdd_wmm.o \
-		    $(HDD_SRC_DIR)/wlan_hdd_cfg.o \
+            $(HDD_SRC_DIR)/wlan_hdd_cfg.o \
             $(HDD_SRC_DIR)/wlan_hdd_wowl.o \
+            $(HDD_SRC_DIR)/wlan_hdd_oemdata.o \
             $(HDD_SRC_DIR)/wlan_hdd_ftm.o  \
             $(HDD_SRC_DIR)/wlan_hdd_hostapd.o  \
             $(HDD_SRC_DIR)/wlan_hdd_softap_tx_rx.o \
@@ -105,7 +105,7 @@ ifeq ($(BUILD_DIAG_VERSION),1)
 VOSS_OBJS += $(VOSS_SRC_DIR)/vos_diag.o
 endif
 
-############# TL ##################### 
+############# TL #####################
 TL_INC := 	-I$(WLAN_DIR)/TL/inc \
          -I$(WLAN_DIR)/TL/src
 
@@ -114,7 +114,7 @@ TL_OBJS := 	$(TL_SRC_DIR)/wlan_qct_tl.o \
              $(TL_SRC_DIR)/wlan_qct_tl_ba.o \
              $(TL_SRC_DIR)/wlan_qct_tl_hosupport.o
 
-############# SYS ##################### 
+############# SYS #####################
 SYS_INC := 	-I$(WLAN_DIR)/SYS/common/inc \
         -I$(WLAN_DIR)/SYS/legacy/src/pal/inc \
         -I$(WLAN_DIR)/SYS/legacy/src/platform/inc \
@@ -138,7 +138,7 @@ SYS_OBJS :=	$(SYS_COMMON_SRC_DIR)/wlan_qct_sys.o \
         $(SYS_LEGACY_SRC_DIR)/utils/src/utilsApi.o \
         $(SYS_LEGACY_SRC_DIR)/utils/src/utilsParser.o
 
-############# MAC ##################### 
+############# MAC #####################
 MAC_INC := 	-I$(WLAN_DIR)/MAC/inc \
         -I$(WLAN_DIR)/MAC/src/include \
         -I$(WLAN_DIR)/MAC/src/pe/include \
@@ -215,7 +215,7 @@ MAC_OBJS = $(MAC_CFG_OBJS) \
            $(MAC_SCH_OBJS) \
            $(MAC_RRM_OBJS)
 
-############# SME ##################### 
+############# SME #####################
 SME_INC := -I$(WLAN_DIR)/SME/inc \
           -I$(WLAN_DIR)/SME/src/csr
 
@@ -241,6 +241,7 @@ SME_CMN_OBJS := $(SME_SRC_DIR)/sme_common/sme_Api.o $(SME_SRC_DIR)/sme_common/sm
 
 SME_BTC_OBJS := $(SME_SRC_DIR)/btc/btcApi.o
 
+SME_OEM_DATA_OBJS := $(SME_SRC_DIR)/oemData/oemDataApi.o
 SME_P2P_OBJS = $(SME_SRC_DIR)/p2p/p2p_Api.o
 SME_RRM_OBJS := $(SME_SRC_DIR)/rrm/sme_rrm.o
 
@@ -250,6 +251,7 @@ SME_OBJS :=  $(SME_CCM_OBJS) \
         $(SME_QOS_OBJS) \
         $(SME_CMN_OBJS) \
         $(SME_BTC_OBJS) \
+        $(SME_OEM_DATA_OBJS) \
         $(SME_P2P_OBJS) \
 	$(SME_RRM_OBJS)
 
@@ -264,7 +266,7 @@ NLINK_OBJS :=    $(NLINK_SRC_DIR)/wlan_nlink_srv.o
 BTC_OBJS :=      $(BTC_SRC_DIR)/wlan_btc_svc.o
 PTT_OBJS :=      $(PTT_SRC_DIR)/wlan_ptt_sock_svc.o
 
-############# SAP ##################### 
+############# SAP #####################
 SAP_INC = -I$(WLAN_DIR)/SAP/inc \
           -I$(WLAN_DIR)/SAP/src
 
@@ -275,7 +277,7 @@ SAP_OBJS = $(SAP_SRC_DIR)/sapApiLinkCntl.o \
 	$(SAP_SRC_DIR)/sapModule.o\
 	$(SAP_SRC_DIR)/sapChSelect.o
 
-############# WDA ##################### 
+############# WDA #####################
 WDA_INC = -I$(WLAN_DIR)/WDA/inc \
           -I$(WLAN_DIR)/WDA/inc/legacy \
           -I$(WLAN_DIR)/WA/src
@@ -288,7 +290,7 @@ WDA_OBJS = $(WDA_SRC_DIR)/wlan_qct_wda.o \
 	$(WDA_SRC_DIR)/wlan_qct_wda_legacy.o \
 	$(WDA_SRC_DIR)/wlan_nv.o
 
-############# DXE ##################### 
+############# DXE #####################
 DXE_INC = -I$(WLAN_DIR)/DXE/inc \
           -I$(WLAN_DIR)/DXE/src
 
@@ -314,13 +316,13 @@ WDI_DP_OBJS    = $(WDI_DP_SRC_DIR)/wlan_qct_wdi_bd.o  \
 
 ############## WDI TRP ################################
 WDI_TRP_INC     = -I$(WLAN_DIR)/WDI/TRP/CTS/inc/ \
-                  -I$(WLAN_DIR)/WDI/TRP/DTS/inc/ 
+                  -I$(WLAN_DIR)/WDI/TRP/DTS/inc/
 
 WDI_TRP_CTS_SRC_DIR = CORE/WDI/TRP/CTS/src
-WDI_TRP_CTS_OBJS    = $(WDI_TRP_CTS_SRC_DIR)/wlan_qct_wdi_cts.o 
+WDI_TRP_CTS_OBJS    = $(WDI_TRP_CTS_SRC_DIR)/wlan_qct_wdi_cts.o
 
 WDI_TRP_DTS_SRC_DIR = CORE/WDI/TRP/DTS/src
-WDI_TRP_DTS_OBJS    = $(WDI_TRP_DTS_SRC_DIR)/wlan_qct_wdi_dts.o 
+WDI_TRP_DTS_OBJS    = $(WDI_TRP_DTS_SRC_DIR)/wlan_qct_wdi_dts.o
 
 WDI_TRP_OBJS        = $(WDI_TRP_CTS_OBJS) \
                       $(WDI_TRP_DTS_OBJS)
@@ -337,7 +339,7 @@ WDI_WPAL_OBJS    = $(WDI_WPAL_SRC_DIR)/wlan_qct_pal_packet.o  \
             $(WDI_WPAL_SRC_DIR)/wlan_qct_pal_msg.o \
             $(WDI_WPAL_SRC_DIR)/wlan_qct_pal_device.o \
 
-############# WDI ##################### 
+############# WDI #####################
 WDI_INC = $(WDI_WPAL_INC)\
           $(WDI_CP_INC)\
           $(WDI_DP_INC)\
@@ -346,9 +348,9 @@ WDI_INC = $(WDI_WPAL_INC)\
 WDI_OBJS = $(WDI_WPAL_OBJS) \
    $(WDI_CP_OBJS) \
    $(WDI_DP_OBJS) \
-   $(WDI_TRP_OBJS) 
+   $(WDI_TRP_OBJS)
 
-############# RIVA ##################### 
+############# RIVA #####################
 RIVA_INC    =    -I$(WLAN_DIR)/../riva/inc/
 
 EXTRA_CFLAGS += $(addprefix -I, $(KERNEL_INC))
@@ -412,6 +414,7 @@ CDEFINES  := -DANI_PRODUCT_TYPE_CLIENT=1 \
         -DWLAN_FEATURE_NEIGHBOR_ROAMING_DEBUG \
         -DWLAN_FEATURE_VOWIFI_11R_DEBUG \
         -DFEATURE_WLAN_WAPI \
+        -DFEATURE_OEM_DATA_SUPPORT\
         -DSOFTAP_CHANNEL_RANGE \
         -DWLAN_AP_STA_CONCURRENCY \
         -DFEATURE_WLAN_SCAN_PNO \
@@ -431,14 +434,14 @@ CDEFINES  := -DANI_PRODUCT_TYPE_CLIENT=1 \
 # there are still pieces of code which are conditional upon these
 # need to investigate all of them to see which should also be
 # conditional upon QC_WLAN_CHIPSET_PRIMA
-CDEFINES += -DANI_CHIPSET_VOLANS 
+CDEFINES += -DANI_CHIPSET_VOLANS
 
 ifeq ($(BUILD_DEBUG_VERSION),1)
 CDEFINES += -DWLAN_DEBUG \
 		-DTRACE_RECORD \
 		-DPE_DEBUG_LOGW \
 		-DPE_DEBUG_LOGE \
-		-DDEBUG 
+		-DDEBUG
 endif
 
 ifeq ($(CONFIG_SLUB_DEBUG_ON),y)

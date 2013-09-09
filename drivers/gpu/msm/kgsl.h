@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,6 +22,8 @@
 #include <linux/cdev.h>
 #include <linux/regulator/consumer.h>
 #include <linux/mm.h>
+
+#include <mach/kgsl.h>
 
 #define KGSL_NAME "kgsl"
 

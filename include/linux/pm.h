@@ -366,6 +366,8 @@ extern struct dev_pm_ops generic_subsys_pm_ops;
 #define PMSG_AUTO_RESUME	((struct pm_message) \
 					{ .event = PM_EVENT_AUTO_RESUME, })
 
+#define PMSG_IS_AUTO(msg)	(((msg).event & PM_EVENT_AUTO) != 0)
+
 /**
  * Device run-time power management status.
  *
@@ -419,6 +421,13 @@ enum rpm_request {
 	RPM_REQ_RESUME,
 };
 
+/* Per-device PM QoS constraints data struct state */
+enum dev_pm_qos_state {
+	DEV_PM_QOS_NO_DEVICE,		/* No device present */
+	DEV_PM_QOS_DEVICE_PRESENT,	/* Device present, data not allocated */
+	DEV_PM_QOS_ALLOCATED,		/* Device present, data allocated */
+};
+
 struct wakeup_source;
 
 struct dev_pm_info {
@@ -463,6 +472,8 @@ struct dev_pm_info {
 	unsigned long		accounting_timestamp;
 	void			*subsys_data;  /* Owned by the subsystem. */
 #endif
+	struct pm_qos_constraints *constraints;
+	enum dev_pm_qos_state	constraints_state;
 };
 
 extern void update_pm_runtime_accounting(struct device *dev);

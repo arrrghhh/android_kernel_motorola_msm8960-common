@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -571,7 +571,12 @@ eHalStatus csrReady(tpAniSirGlobal pMac)
     csrInitBGScanChannelList(pMac);
     /* HDD issues the init scan */
     csrScanStartResultAgingTimer(pMac);
-
+    /* If the gScanAgingTime is set to '0' then scan results aging timeout 
+         based  on timer feature is not enabled*/  
+    if(0 != pMac->scan.scanResultCfgAgingTime )
+    {
+       csrScanStartResultCfgAgingTimer(pMac);
+    }
     //Store the AC weights in TL for later use
     WLANTL_GetACWeights(pMac->roam.gVosContext, pMac->roam.ucACWeights);
 
@@ -1225,6 +1230,7 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         pMac->scan.fValidateList = pParam->fValidateList;
         pMac->scan.fEnableBypass11d = pParam->fEnableBypass11d;
         pMac->scan.fEnableDFSChnlScan = pParam->fEnableDFSChnlScan;
+        pMac->scan.scanResultCfgAgingTime = pParam->scanCfgAgingTime;
     }
     
     return status;
@@ -3106,11 +3112,14 @@ eHalStatus csrRoamSetBssConfigCfg(tpAniSirGlobal pMac, tANI_U32 sessionId, tCsrR
     csrSetCfgPrivacy(pMac, pProfile, (tANI_BOOLEAN)pBssConfig->BssCap.privacy );
     //short slot time
     ccmCfgSetInt(pMac, WNI_CFG_11G_SHORT_SLOT_TIME_ENABLED, pBssConfig->uShortSlotTime, NULL, eANI_BOOLEAN_FALSE);
+
+#ifdef WLAN_SOFTAP_FEATURE
     //11d
-    /*ccmCfgSetInt(pMac, WNI_CFG_11D_ENABLED,
-                        ((pBssConfig->f11hSupport) ? pBssConfig->f11hSupport : pMac->roam.configParam.Is11dSupportEnabled), 
+    ccmCfgSetInt(pMac, WNI_CFG_11D_ENABLED,
+                        ((pBssConfig->f11hSupport) ? pBssConfig->f11hSupport : pProfile->ieee80211d),
                         NULL, eANI_BOOLEAN_FALSE);
-    //11h
+#endif
+    /*//11h
     ccmCfgSetInt(pMac, WNI_CFG_11H_ENABLED, pMac->roam.configParam.Is11hSupportEnabled, NULL, eANI_BOOLEAN_FALSE);
     */
     ccmCfgSetInt(pMac, WNI_CFG_LOCAL_POWER_CONSTRAINT, pBssConfig->uPowerLimit, NULL, eANI_BOOLEAN_FALSE);
@@ -5161,6 +5170,7 @@ eHalStatus csrRoamCopyProfile(tpAniSirGlobal pMac, tCsrRoamProfile *pDstProfile,
         pDstProfile->obssProtEnabled   = pSrcProfile->obssProtEnabled;  
         pDstProfile->cfg_protection    = pSrcProfile->cfg_protection;
         pDstProfile->wps_state         = pSrcProfile->wps_state;
+        pDstProfile->ieee80211d        = pSrcProfile->ieee80211d;
 #endif
 
         palCopyMemory(pMac->hHdd, &pDstProfile->Keys, &pSrcProfile->Keys, sizeof(pDstProfile->Keys));

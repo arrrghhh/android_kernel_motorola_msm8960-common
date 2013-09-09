@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -74,6 +74,8 @@ when           who        what, where, why
  * This is temporary definition location to make compile and unit test
  * If official msmreg.h integrated, this part will be eliminated */
 /* Start with base address */
+
+#define WLANDXE_BMU_AVAILABLE_BD_PDU     0x03080084
 
 #define WLANDXE_CCU_DXE_INT_SELECT       0x03200b10
 #define WLANDXE_CCU_DXE_INT_SELECT_STAT  0x03200b14

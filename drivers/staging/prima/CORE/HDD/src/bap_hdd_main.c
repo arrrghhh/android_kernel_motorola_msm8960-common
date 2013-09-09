@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -52,7 +52,7 @@
 /*--------------------------------------------------------------------------
   Include Files
   ------------------------------------------------------------------------*/
-//fixbuild #ifdef WLAN_BTAMP_FEATURE
+#ifdef WLAN_BTAMP_FEATURE
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/miscdevice.h>
@@ -4505,4 +4505,4 @@ v_BOOL_t WLANBAP_AmpSessionOn(void)
 }
 
 
-//#endif // WLAN_BTAMP_FEATURE
+#endif // WLAN_BTAMP_FEATURE

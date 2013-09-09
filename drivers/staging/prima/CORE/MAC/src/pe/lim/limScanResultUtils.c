@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -629,20 +629,18 @@ limLookupNaddHashEntry(tpAniSirGlobal pMac,
 
     for (pprev = ptemp; ptemp; pprev = ptemp, ptemp = ptemp->next)
     {
-        //For infrastructure, only check BSSID. For IBSS, check more
+        //For infrastructure, check BSSID and SSID. For IBSS, check more
         pSirCapTemp = (tSirMacCapabilityInfo *)&ptemp->bssDescription.capabilityInfo;
         if((pSirCapTemp->ess == pSirCap->ess) && //matching ESS type first
             (palEqualMemory( pMac->hHdd,(tANI_U8 *) pBssDescr->bssDescription.bssId,
                       (tANI_U8 *) ptemp->bssDescription.bssId,
                       sizeof(tSirMacAddr))) &&   //matching BSSID
-            (pBssDescr->bssDescription.channelId ==
-                                      ptemp->bssDescription.channelId) &&
-            ((pSirCapTemp->ess) ||    //we are done for infrastructure
-            //For IBSS, matching SSID, nwType and channelId
-            ((palEqualMemory( pMac->hHdd,((tANI_U8 *) &pBssDescr->bssDescription.ieFields + 1),
+            palEqualMemory( pMac->hHdd,((tANI_U8 *) &pBssDescr->bssDescription.ieFields + 1),
                            ((tANI_U8 *) &ptemp->bssDescription.ieFields + 1),
                            (tANI_U8) (ssidLen + 1)) &&
-            (pBssDescr->bssDescription.nwType ==
+            ((pSirCapTemp->ess) || //we are done for infrastructure
+            //For IBSS, nwType and channelId
+            (((pBssDescr->bssDescription.nwType ==
                                          ptemp->bssDescription.nwType) &&
             (pBssDescr->bssDescription.channelId ==
                                       ptemp->bssDescription.channelId))))
@@ -681,7 +679,7 @@ limLookupNaddHashEntry(tpAniSirGlobal pMac,
     }
 
     //for now, only rssi, we can add more if needed
-    if ((action == LIM_HASH_UPDATE) && dontUpdateAll)
+    if ((action == LIM_HASH_UPDATE) && dontUpdateAll && rssi)
     {
         pBssDescr->bssDescription.rssi = rssi;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -446,10 +446,10 @@ VOS_STATUS WDA_close(v_PVOID_t pVosContext);
 VOS_STATUS WDA_shutdown(v_PVOID_t pVosContext, wpt_boolean closeTransport);
 
 /*
- * FUNCTION: WDA_stopFailed
- * WDA stop is failed
+ * FUNCTION: WDA_setNeedShutdown
+ * WDA stop failed or WDA NV Download failed
  */
-void WDA_stopFailed(v_PVOID_t pVosContext);
+void WDA_setNeedShutdown(v_PVOID_t pVosContext);
 /*
  * FUNCTION: WDA_needShutdown
  * WDA requires a shutdown rather than a close
@@ -1920,4 +1920,28 @@ WDA_DS_GetTxFlowMask
 VOS_STATUS WDA_HALDumpCmdReq(tpAniSirGlobal   pMac,tANI_U32 cmd, 
                  tANI_U32   arg1, tANI_U32   arg2, tANI_U32   arg3,
                  tANI_U32   arg4, tANI_U8   *pBuffer);
+
+/*==========================================================================
+  FUNCTION   WDA_TransportChannelDebug
+
+  DESCRIPTION 
+    Display Transport Channel debugging information
+    User may request to display DXE channel snapshot
+    Or if host driver detects any abnormal stcuk may display
+
+  PARAMETERS
+    displaySnapshot : Dispaly DXE snapshot option
+    enableStallDetect : Enable stall detect feature
+                        This feature will take effect to data performance
+                        Not integrate till fully verification
+
+  RETURN VALUE
+    NONE
+
+===========================================================================*/
+void WDA_TransportChannelDebug
+(
+   v_BOOL_t   displaySnapshot,
+   v_BOOL_t   toggleStallDetect
+);
 #endif

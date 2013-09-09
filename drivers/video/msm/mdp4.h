@@ -1,4 +1,5 @@
-/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -553,7 +554,7 @@ static inline int mdp4_dtv_pipe_commit(int cndx, int wait)
 }
 #endif /* CONFIG_FB_MSM_DTV */
 
-void mdp4_dtv_set_black_screen(bool commit);
+void mdp4_dtv_set_black_screen(void);
 
 int mdp4_overlay_dtv_set(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe);
@@ -960,6 +961,7 @@ int mdp4_writeback_queue_buffer(struct fb_info *info,
 void mdp4_writeback_dma_stop(struct msm_fb_data_type *mfd);
 int mdp4_writeback_init(struct fb_info *info);
 int mdp4_writeback_terminate(struct fb_info *info);
+int mdp4_writeback_set_mirroring_hint(struct fb_info *info, int hint);
 
 uint32_t mdp_block2base(uint32_t block);
 int mdp_hist_lut_config(struct mdp_hist_lut_data *data);
@@ -996,9 +998,6 @@ int mdp4_calc_blt_mdp_bw(struct msm_fb_data_type *mfd,
 			 struct mdp4_overlay_pipe *pipe);
 int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd);
 void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd, int flag);
-int mdp4_update_base_blend(struct msm_fb_data_type *mfd,
-				struct mdp_blend_cfg *mdp_blend_cfg);
-u32 mdp4_get_mixer_num(u32 panel_type);
 int mdp4_overlay_reset(void);
 void mdp4_vg_csc_restore(void);
 

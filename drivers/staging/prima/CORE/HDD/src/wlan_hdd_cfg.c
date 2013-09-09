@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1344,6 +1344,13 @@ REG_TABLE_ENTRY g_registry_table[] =
               CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED_MIN,
               CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED_MAX ),
 #endif
+
+REG_VARIABLE( CFG_SCAN_AGING_PARAM_NAME, WLAN_PARAM_Integer,
+             hdd_config_t, scanAgingTimeout,
+             VAR_FLAGS_OPTIONAL,
+             CFG_SCAN_AGING_PARAM_DEFAULT,
+             CFG_SCAN_AGING_PARAM_MIN,
+             CFG_SCAN_AGING_PARAM_MAX ),
 };
 
 /*
@@ -1450,7 +1457,8 @@ VOS_STATUS hdd_parse_config_ini(hdd_context_t* pHddCtx)
    char *buffer, *line,*pTemp;
    size_t size;
    char *name, *value;
-   tCfgIniEntry cfgIniTable[MAX_CFG_INI_ITEMS];
+   /* cfgIniTable is static to avoid excess stack usage */
+   static tCfgIniEntry cfgIniTable[MAX_CFG_INI_ITEMS];
    VOS_STATUS vos_status = VOS_STATUS_SUCCESS;
 
    memset(cfgIniTable, 0, sizeof(cfgIniTable));
@@ -2649,6 +2657,9 @@ VOS_STATUS hdd_set_sme_config( hdd_context_t *pHddCtx )
 
    smeConfig.csrConfig.addTSWhenACMIsOff = pConfig->AddTSWhenACMIsOff;
    smeConfig.csrConfig.fValidateList = pConfig->fValidateScanList;
+
+   //Scan Results Aging Time out value
+   smeConfig.csrConfig.scanCfgAgingTime = pConfig->scanAgingTimeout;
 
    halStatus = sme_UpdateConfig( pHddCtx->hHal, &smeConfig);    
    if ( !HAL_STATUS_SUCCESS( halStatus ) )

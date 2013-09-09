@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -304,4 +304,15 @@ wpt_status wpalRivaSubystemRestart(void);
        NONE
 ---------------------------------------------------------------------------*/
 void wpalWlanReload(void);
+
+/*---------------------------------------------------------------------------
+    wpalWcnssResetIntr -  Trigger the reset FIQ to Riva
+
+    Param:
+       None
+    Return:
+       NONE
+---------------------------------------------------------------------------*/
+void wpalWcnssResetIntr(void);
+
 #endif // __WLAN_QCT_PAL_API_H

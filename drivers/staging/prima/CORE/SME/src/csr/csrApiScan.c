@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -101,6 +101,7 @@ extern tSirRetStatus wlan_cfgGetStr(tpAniSirGlobal, tANI_U16, tANI_U8*, tANI_U32
                                                                      
 void csrScanGetResultTimerHandler(void *);
 void csrScanResultAgingTimerHandler(void *pv);
+static void csrScanResultCfgAgingTimerHandler(void *pv);
 void csrScanIdleScanTimerHandler(void *);
 #ifdef WLAN_AP_STA_CONCURRENCY
 static void csrStaApConcTimerHandler(void *);
@@ -267,6 +268,13 @@ eHalStatus csrScanOpen( tpAniSirGlobal pMac )
             smsLog(pMac, LOGE, FL("cannot allocate memory for ResultAging timer\n"));
             break;
         }
+        status = palTimerAlloc(pMac->hHdd, &pMac->scan.hTimerResultCfgAging, 
+        csrScanResultCfgAgingTimerHandler, pMac);
+        if(!HAL_STATUS_SUCCESS(status))
+        {
+            smsLog(pMac, LOGE, FL("cannot allocate memory for CFG ResultAging timer\n"));
+            break;
+        }
     }while(0);
     
     return (status);
@@ -296,6 +304,7 @@ eHalStatus csrScanClose( tpAniSirGlobal pMac )
     csrLLClose(&pMac->scan.channelPowerInfoList5G);
     csrScanDisable(pMac);
     palTimerFree(pMac->hHdd, pMac->scan.hTimerResultAging);
+    palTimerFree(pMac->hHdd, pMac->scan.hTimerResultCfgAging);
     palTimerFree(pMac->hHdd, pMac->scan.hTimerGetResult);
 #ifdef WLAN_AP_STA_CONCURRENCY
     palTimerFree(pMac->hHdd, pMac->scan.hTimerStaApConcTimer);
@@ -415,6 +424,16 @@ eHalStatus csrQueueScanRequest( tpAniSirGlobal pMac, tSmeCmd *pScanCmd )
                 pQueueScanCmd->u.scanCmd.reason = pScanCmd->u.scanCmd.reason;
                 pQueueScanCmd->u.scanCmd.scanID = pMac->scan.nextScanID++; //let it wrap around
 
+                /* First copy all the parameters to local variable of scan request */
+                csrScanCopyRequest(pMac, &scanReq, &pScanCmd->u.scanCmd.u.scanRequest);
+
+                /* Now modify the elements of local var scan request required to be modified for split scan */
+                if(scanReq.ChannelInfo.ChannelList != NULL)
+                {
+                    palFreeMemory(pMac->hHdd, scanReq.ChannelInfo.ChannelList);
+                    scanReq.ChannelInfo.ChannelList = NULL;
+                }
+                
                 pChnInfo->numOfChannels = pScanCmd->u.scanCmd.u.scanRequest.ChannelInfo.numOfChannels - 1;
 
                 VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_WARN, 
@@ -443,9 +462,18 @@ eHalStatus csrQueueScanRequest( tpAniSirGlobal pMac, tSmeCmd *pScanCmd )
                         pScanCmd->u.scanCmd.u.scanRequest.ChannelInfo.ChannelList = NULL;
                  
                     }
+                    if( scanReq.pIEField != NULL)
+                    {
+                        palFreeMemory(pMac->hHdd, scanReq.pIEField);
+                        scanReq.pIEField = NULL;
+                    }
                     smsLog( pMac, LOGE, FL(" Failed to get copy csrScanRequest = %d\n"), status );
                     return eHAL_STATUS_FAILURE;
-                }       
+                }
+                /* Clean the local scan variable */
+                scanReq.ChannelInfo.ChannelList = NULL;
+                scanReq.ChannelInfo.numOfChannels = 0;
+                csrScanFreeRequest(pMac, &scanReq);
                 numChn = 1; //make numChn to be 1 for second iteration to create a send command
             }  
 
@@ -3767,6 +3795,7 @@ tANI_BOOLEAN csrIsDuplicateBssDescription( tpAniSirGlobal pMac, tSirBssDescripti
     tANI_BOOLEAN fMatch = FALSE;
     tSirMacCapabilityInfo *pCap1, *pCap2;
     tDot11fBeaconIEs *pIes1 = NULL;
+    tDot11fBeaconIEs *pIesTemp = pIes2;
 
     pCap1 = (tSirMacCapabilityInfo *)&pSirBssDesc1->capabilityInfo;
     pCap2 = (tSirMacCapabilityInfo *)&pSirBssDesc2->capabilityInfo;
@@ -3777,10 +3806,30 @@ tANI_BOOLEAN csrIsDuplicateBssDescription( tpAniSirGlobal pMac, tSirBssDescripti
                 (pSirBssDesc1->channelId == pSirBssDesc2->channelId))
         {
             fMatch = TRUE;
+            // Check for SSID match, if exists
+            do
+            {
+                if(!HAL_STATUS_SUCCESS(csrGetParsedBssDescriptionIEs(pMac, pSirBssDesc1, &pIes1)))
+                {
+                    break;
+                }
+                if( NULL == pIesTemp )
+                {
+                    if(!HAL_STATUS_SUCCESS(csrGetParsedBssDescriptionIEs(pMac, pSirBssDesc2, &pIesTemp)))
+                    {
+                        break;
+                    }
+                }
+                if(pIes1->SSID.present && pIesTemp->SSID.present)
+                {
+                    fMatch = csrIsSsidMatch(pMac, pIes1->SSID.ssid, pIes1->SSID.num_ssid, 
+                                            pIesTemp->SSID.ssid, pIesTemp->SSID.num_ssid, eANI_BOOLEAN_TRUE);
+                } 
+            }while(0);
+
         }
         else if (pCap1->ibss && (pSirBssDesc1->channelId == pSirBssDesc2->channelId))
         {
-            tDot11fBeaconIEs *pIesTemp = pIes2;
 
             do
             {
@@ -3802,11 +3851,6 @@ tANI_BOOLEAN csrIsDuplicateBssDescription( tpAniSirGlobal pMac, tSirBssDescripti
                                             pIesTemp->SSID.ssid, pIesTemp->SSID.num_ssid, eANI_BOOLEAN_TRUE);
                 }
             }while(0);
-            if( (NULL == pIes2) && pIesTemp )
-            {
-                //locally allocated
-                palFreeMemory(pMac->hHdd, pIesTemp);
-            }
         }
 #if defined WLAN_FEATURE_P2P
         /* In case of P2P devices, ess and ibss will be set to zero */
@@ -3821,6 +3865,12 @@ tANI_BOOLEAN csrIsDuplicateBssDescription( tpAniSirGlobal pMac, tSirBssDescripti
     if(pIes1)
     {
         palFreeMemory(pMac->hHdd, pIes1);
+    }
+    
+    if( (NULL == pIes2) && pIesTemp )
+    {
+        //locally allocated
+        palFreeMemory(pMac->hHdd, pIesTemp);
     }
 
     return( fMatch );
@@ -4972,6 +5022,11 @@ void csrScanStopTimers(tpAniSirGlobal pMac)
     csrScanStopResultAgingTimer(pMac);
     csrScanStopIdleScanTimer(pMac);
     csrScanStopGetResultTimer(pMac);
+    if(0 != pMac->scan.scanResultCfgAgingTime )
+    {
+        csrScanStopResultCfgAgingTimer(pMac);
+    }
+
 }
 
 
@@ -5045,6 +5100,16 @@ static void csrStaApConcTimerHandler(void *pv)
              pSendScanCmd->u.scanCmd.reason = pScanCmd->u.scanCmd.reason;
              pSendScanCmd->u.scanCmd.scanID = pMac->scan.nextScanID++; //let it wrap around
 
+             /* First copy all the parameters to local variable of scan request */
+             csrScanCopyRequest(pMac, &scanReq, &pScanCmd->u.scanCmd.u.scanRequest);
+             
+             /* Now modify the elements of local var scan request required to be modified for split scan */
+             if(scanReq.ChannelInfo.ChannelList != NULL)
+             {
+                 palFreeMemory(pMac->hHdd,scanReq.ChannelInfo.ChannelList);
+                 scanReq.ChannelInfo.ChannelList = NULL;
+             }
+             
              pChnInfo->numOfChannels = 1;
              palCopyMemory(pMac->hHdd, &channelToScan[0], &pScanCmd->u.scanCmd.u.scanRequest.ChannelInfo.ChannelList[0], 
                           1 * sizeof(tANI_U8)); //just send one channel
@@ -5070,7 +5135,11 @@ static void csrStaApConcTimerHandler(void *pv)
                  smsLog( pMac, LOGE, FL(" Failed to get copy csrScanRequest = %d\n"), status );
                  csrLLUnlock(&pMac->scan.scanCmdPendingList);
                  return;
-             }       
+             }
+             /* Clean the local scan variable */
+             scanReq.ChannelInfo.ChannelList = NULL;
+             scanReq.ChannelInfo.numOfChannels = 0;
+             csrScanFreeRequest(pMac, &scanReq);
         }
         else
         {    //numChn ==1 This is the last channel to be scanned
@@ -5099,26 +5168,36 @@ static void csrStaApConcTimerHandler(void *pv)
 
 eHalStatus csrScanStartResultAgingTimer(tpAniSirGlobal pMac)
 {
-    eHalStatus status;
+    eHalStatus status = eHAL_STATUS_FAILURE;
     
     if(pMac->scan.fScanEnable)
     {
         status = palTimerStart(pMac->hHdd, pMac->scan.hTimerResultAging, CSR_SCAN_RESULT_AGING_INTERVAL, eANI_BOOLEAN_TRUE);
     }
-    else
-    {
-        status = eHAL_STATUS_FAILURE;
-    }
-    
     return (status);
 }
 
+eHalStatus csrScanStartResultCfgAgingTimer(tpAniSirGlobal pMac)
+{
+    eHalStatus status = eHAL_STATUS_FAILURE;
+
+    if(pMac->scan.fScanEnable)
+    {
+        status = palTimerStart(pMac->hHdd, pMac->scan.hTimerResultCfgAging, 
+        CSR_SCAN_RESULT_CFG_AGING_INTERVAL, eANI_BOOLEAN_TRUE);
+    }
+    return (status);
+}
 
 eHalStatus csrScanStopResultAgingTimer(tpAniSirGlobal pMac)
 {
     return (palTimerStop(pMac->hHdd, pMac->scan.hTimerResultAging));
 }
 
+eHalStatus csrScanStopResultCfgAgingTimer(tpAniSirGlobal pMac)
+{
+    return (palTimerStop(pMac->hHdd, pMac->scan.hTimerResultCfgAging));
+}
 
 //This function returns the maximum time a BSS is allowed in the scan result.
 //The time varies base on connection and power saving factors.
@@ -5216,6 +5295,29 @@ void csrScanResultAgingTimerHandler(void *pv)
     }
 }
 
+static void csrScanResultCfgAgingTimerHandler(void *pv)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( pv );
+    tListElem *pEntry, *tmpEntry;
+    tCsrScanResult *pResult;
+    tANI_TIMESTAMP ageOutTime =  pMac->scan.scanResultCfgAgingTime * PAL_TICKS_PER_SECOND;
+    tANI_TIMESTAMP curTime = (tANI_TIMESTAMP)palGetTickCount(pMac->hHdd);
+  
+    csrLLLock(&pMac->scan.scanResultList);
+    pEntry = csrLLPeekHead( &pMac->scan.scanResultList, LL_ACCESS_NOLOCK );
+    while( pEntry ) 
+    {
+        tmpEntry = csrLLNext(&pMac->scan.scanResultList, pEntry, LL_ACCESS_NOLOCK);
+        pResult = GET_BASE_ADDR( pEntry, tCsrScanResult, Link );
+        if((curTime - pResult->Result.BssDescriptor.nReceivedTime) > ageOutTime)
+        {
+            smsLog(pMac, LOGW, " age out due to time out");
+            csrScanAgeOutBss(pMac, pResult);
+        }
+        pEntry = tmpEntry;
+    }
+    csrLLUnlock(&pMac->scan.scanResultList);
+}
 
 eHalStatus csrScanStartIdleScanTimer(tpAniSirGlobal pMac, tANI_U32 interval)
 {
@@ -5738,7 +5840,31 @@ eHalStatus csrScanForSSID(tpAniSirGlobal pMac, tANI_U32 sessionId, tCsrRoamProfi
             palZeroMemory(pMac->hHdd, &pScanCmd->u.scanCmd.u.scanRequest, sizeof(tCsrScanRequest));
             pScanCmd->u.scanCmd.u.scanRequest.scanType = eSIR_ACTIVE_SCAN;
             pScanCmd->u.scanCmd.u.scanRequest.BSSType = pProfile->BSSType;
-            pScanCmd->u.scanCmd.u.scanRequest.uIEFieldLen = 0;
+            // To avoid 11b rate in probe request Set p2pSearch flag as 1 for P2P Client Mode
+            if(VOS_P2P_CLIENT_MODE == pProfile->csrPersona)
+            {
+                pScanCmd->u.scanCmd.u.scanRequest.p2pSearch = 1;
+            }
+            if(pProfile->pAddIEScan)
+            {
+                status = palAllocateMemory(pMac->hHdd,
+                                (void **)&pScanCmd->u.scanCmd.u.scanRequest.pIEField,
+                                pProfile->nAddIEScanLength);
+                palZeroMemory(pMac->hHdd, pScanCmd->u.scanCmd.u.scanRequest.pIEField, pProfile->nAddIEScanLength);
+                if(HAL_STATUS_SUCCESS(status))
+                {
+                    palCopyMemory(pMac->hHdd, pScanCmd->u.scanCmd.u.scanRequest.pIEField, pProfile->pAddIEScan, pProfile->nAddIEScanLength);
+                    pScanCmd->u.scanCmd.u.scanRequest.uIEFieldLen = pProfile->nAddIEScanLength;
+                }
+                else
+                {
+                    smsLog(pMac, LOGE, "No memory for scanning IE fields\n");
+                }
+            } //Allocate memory for IE field
+            else
+            {
+                pScanCmd->u.scanCmd.u.scanRequest.uIEFieldLen = 0;
+            }
             /* For one channel be good enpugh time to receive beacon atleast */
             if(  1 == pProfile->ChannelInfo.numOfChannels )
             {

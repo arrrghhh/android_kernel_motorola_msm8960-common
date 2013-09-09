@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -578,9 +578,11 @@ typedef struct tagCsrScanStruct
 #endif
     tPalTimerHandle hTimerIdleScan;
     tPalTimerHandle hTimerResultAging;
+    tPalTimerHandle hTimerResultCfgAging;
     tPalTimerHandle hTimerBgScan;
     //changes on every scan, it is used as a flag for whether 11d info is found on every scan
-    tANI_U8 channelOf11dInfo;   
+    tANI_U8 channelOf11dInfo;
+    tANI_U8 scanResultCfgAgingTime;
     //changes on every scan, a flag to tell whether conflict 11d info found on each BSS
     tANI_BOOLEAN fAmbiguous11dInfoFound;    
     //Tush: changes on every scan, a flag to tell whether the applied 11d info present in one of the scan results

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,11 @@
 
 #define ADRENO_DEVICE(device) \
 		KGSL_CONTAINER_OF(device, struct adreno_device, dev)
+
+#define ADRENO_CHIPID_CORE(_id) (((_id) >> 24) & 0xFF)
+#define ADRENO_CHIPID_MAJOR(_id) (((_id) >> 16) & 0xFF)
+#define ADRENO_CHIPID_MINOR(_id) (((_id) >> 8) & 0xFF)
+#define ADRENO_CHIPID_PATCH(_id) ((_id) & 0xFF)
 
 /* Flags to control command packet settings */
 #define KGSL_CMD_FLAGS_NONE             0x00000000

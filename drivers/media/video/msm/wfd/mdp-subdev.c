@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -20,7 +20,6 @@ struct mdp_instance {
 	struct fb_info *mdp;
 	u32 height;
 	u32 width;
-	struct switch_dev sdev;
 };
 
 int mdp_init(struct v4l2_subdev *sd, u32 val)
@@ -44,13 +43,6 @@ int mdp_open(struct v4l2_subdev *sd, void *arg)
 	if (!fbi) {
 		WFD_MSG_ERR("Failed to acquire mdp instance\n");
 		rc = -ENODEV;
-		goto exit;
-	}
-	inst->sdev.name = "wfd";
-	/* Register wfd node to switch driver */
-	rc = switch_dev_register(&inst->sdev);
-	if (rc) {
-		WFD_MSG_ERR("WFD switch registration failed\n");
 		goto exit;
 	}
 
@@ -80,8 +72,6 @@ int mdp_start(struct v4l2_subdev *sd, void *arg)
 			rc = -ENODEV;
 			goto exit;
 		}
-		switch_set_state(&inst->sdev, true);
-		WFD_MSG_DBG("wfd state switched to %d\n", inst->sdev.state);
 	}
 exit:
 	return rc;
@@ -98,8 +88,6 @@ int mdp_stop(struct v4l2_subdev *sd, void *arg)
 			return rc;
 		}
 		fbi = (struct fb_info *)inst->mdp;
-		switch_set_state(&inst->sdev, false);
-		WFD_MSG_DBG("wfd state switched to %d\n", inst->sdev.state);
 	}
 	return 0;
 }
@@ -111,8 +99,6 @@ int mdp_close(struct v4l2_subdev *sd, void *arg)
 		fbi = (struct fb_info *)inst->mdp;
 		msm_fb_writeback_terminate(fbi);
 		kfree(inst);
-		/* Unregister wfd node from switch driver */
-		switch_dev_unregister(&inst->sdev);
 	}
 	return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -454,7 +454,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                          tpPESession psessionEntry,
                          tANI_U8        probeReqP2pIe)
 {
-    tDot11fProbeResponse frm;
+    tDot11fProbeResponse *pFrm;
     tSirRetStatus        nSirStatus;
     tANI_U32             cfg, nPayload, nBytes, nStatus;
     tpSirMacMgmtHdr      pMacHdr;
@@ -488,9 +488,16 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         return;
     }
     
+    if(eHAL_STATUS_SUCCESS != palAllocateMemory(pMac->hHdd, 
+                                                (void **)&pFrm, sizeof(tDot11fProbeResponse)))
+    {
+        limLog(pMac, LOGE, FL("Unable to PAL allocate memory in limSendProbeRspMgmtFrame\n") );
+        return;
+    }
+
     // Fill out 'frm', after which we'll just hand the struct off to
     // 'dot11fPackProbeResponse'.
-    palZeroMemory( pMac->hHdd, ( tANI_U8* )&frm, sizeof( frm ) );
+    palZeroMemory( pMac->hHdd, ( tANI_U8* )pFrm, sizeof( tDot11fProbeResponse ) );
 
     // Timestamp to be updated by TFP, below.
 
@@ -498,29 +505,29 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
 #ifdef WLAN_SOFTAP_FEATURE
     if(psessionEntry->limSystemRole == eLIM_AP_ROLE)
     {
-        frm.BeaconInterval.interval = pMac->sch.schObject.gSchBeaconInterval;        
+        pFrm->BeaconInterval.interval = pMac->sch.schObject.gSchBeaconInterval;        
     }
     else
     {
 #endif
     CFG_LIM_GET_INT_NO_STATUS( nSirStatus, pMac,
                                WNI_CFG_BEACON_INTERVAL, cfg );
-    frm.BeaconInterval.interval = ( tANI_U16 ) cfg;
+    pFrm->BeaconInterval.interval = ( tANI_U16 ) cfg;
 #ifdef WLAN_SOFTAP_FEATURE
     }
 #endif
 
 
-    PopulateDot11fCapabilities( pMac, &frm.Capabilities, psessionEntry );
-    PopulateDot11fSSID( pMac, ( tSirMacSSid* )pSsid, &frm.SSID );
+    PopulateDot11fCapabilities( pMac, &pFrm->Capabilities, psessionEntry );
+    PopulateDot11fSSID( pMac, ( tSirMacSSid* )pSsid, &pFrm->SSID );
     PopulateDot11fSuppRates( pMac, POPULATE_DOT11F_RATES_OPERATIONAL,
-                             &frm.SuppRates,psessionEntry);
+                             &pFrm->SuppRates,psessionEntry);
 
-    PopulateDot11fDSParams( pMac, &frm.DSParams, psessionEntry->currentOperChannel);
-    PopulateDot11fIBSSParams( pMac, &frm.IBSSParams, psessionEntry );
+    PopulateDot11fDSParams( pMac, &pFrm->DSParams, psessionEntry->currentOperChannel);
+    PopulateDot11fIBSSParams( pMac, &pFrm->IBSSParams, psessionEntry );
 
 #ifdef ANI_PRODUCT_TYPE_AP
-    PopulateDot11fCFParams( pMac, &frm.Capabilities, &frm.CFParams );
+    PopulateDot11fCFParams( pMac, &pFrm->Capabilities, &pFrm->CFParams );
 #endif // AP Image
 
 #ifdef WLAN_SOFTAP_FEATURE
@@ -528,7 +535,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     {
         if(psessionEntry->wps_state != SAP_WPS_DISABLED)
         {
-            PopulateDot11fProbeResWPSIEs(pMac, &frm.WscProbeRes, psessionEntry);
+            PopulateDot11fProbeResWPSIEs(pMac, &pFrm->WscProbeRes, psessionEntry);
         }
     }
     else
@@ -541,32 +548,32 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     
     if (wpsApEnable)
     {
-        PopulateDot11fWscInProbeRes(pMac, &frm.WscProbeRes);
+        PopulateDot11fWscInProbeRes(pMac, &pFrm->WscProbeRes);
     }
 
     if (pMac->lim.wscIeInfo.probeRespWscEnrollmentState == eLIM_WSC_ENROLL_BEGIN)
     {
-        PopulateDot11fWscRegistrarInfoInProbeRes(pMac, &frm.WscProbeRes);
+        PopulateDot11fWscRegistrarInfoInProbeRes(pMac, &pFrm->WscProbeRes);
         pMac->lim.wscIeInfo.probeRespWscEnrollmentState = eLIM_WSC_ENROLL_IN_PROGRESS;
     }
 
     if (pMac->lim.wscIeInfo.wscEnrollmentState == eLIM_WSC_ENROLL_END)
     {
-        DePopulateDot11fWscRegistrarInfoInProbeRes(pMac, &frm.WscProbeRes);
+        DePopulateDot11fWscRegistrarInfoInProbeRes(pMac, &pFrm->WscProbeRes);
         pMac->lim.wscIeInfo.probeRespWscEnrollmentState = eLIM_WSC_ENROLL_NOOP;
     }
 #ifdef WLAN_SOFTAP_FEATURE
     }
 #endif
 
-    PopulateDot11fCountry( pMac, &frm.Country, psessionEntry);
-    PopulateDot11fEDCAParamSet( pMac, &frm.EDCAParamSet, psessionEntry);
+    PopulateDot11fCountry( pMac, &pFrm->Country, psessionEntry);
+    PopulateDot11fEDCAParamSet( pMac, &pFrm->EDCAParamSet, psessionEntry);
 
 #ifdef ANI_PRODUCT_TYPE_AP
     if( pMac->lim.gLim11hEnable )
     {
-        PopulateDot11fPowerConstraints( pMac, &frm.PowerConstraints );
-        PopulateDot11fTPCReport( pMac, &frm.TPCReport, psessionEntry);
+        PopulateDot11fPowerConstraints( pMac, &pFrm->PowerConstraints );
+        PopulateDot11fTPCReport( pMac, &pFrm->TPCReport, psessionEntry);
 
         // If .11h isenabled & channel switching is not already started and
         // we're in either PRIMARY_ONLY or PRIMARY_AND_SECONDARY state, then
@@ -577,53 +584,53 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                pMac->lim.gLimChannelSwitch.state ==
                eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY ) )
         {
-            PopulateDot11fChanSwitchAnn( pMac, &frm.ChanSwitchAnn );
-            PopulateDot11fExtChanSwitchAnn(pMac, &frm.ExtChanSwitchAnn);
+            PopulateDot11fChanSwitchAnn( pMac, &pFrm->ChanSwitchAnn, psessionEntry );
+            PopulateDot11fExtChanSwitchAnn(pMac, &pFrm->ExtChanSwitchAnn, psessionEntry );
         }
     }
 #endif
 
     if (psessionEntry->dot11mode != WNI_CFG_DOT11_MODE_11B)
-        PopulateDot11fERPInfo( pMac, &frm.ERPInfo, psessionEntry);
+        PopulateDot11fERPInfo( pMac, &pFrm->ERPInfo, psessionEntry);
 
 
     // N.B. In earlier implementations, the RSN IE would be placed in
     // the frame here, before the WPA IE, if 'RSN_BEFORE_WPA' was defined.
     PopulateDot11fExtSuppRates( pMac, POPULATE_DOT11F_RATES_OPERATIONAL,
-                                &frm.ExtSuppRates, psessionEntry );
+                                &pFrm->ExtSuppRates, psessionEntry );
 
     //Populate HT IEs, when operating in 11n or Taurus modes.
     if ( psessionEntry->htCapabality )
     {
-        PopulateDot11fHTCaps( pMac, &frm.HTCaps );
+        PopulateDot11fHTCaps( pMac, &pFrm->HTCaps );
 #ifdef WLAN_SOFTAP_FEATURE
-        PopulateDot11fHTInfo( pMac, &frm.HTInfo, psessionEntry );
+        PopulateDot11fHTInfo( pMac, &pFrm->HTInfo, psessionEntry );
 #else
-        PopulateDot11fHTInfo( pMac, &frm.HTInfo );
+        PopulateDot11fHTInfo( pMac, &pFrm->HTInfo );
 #endif
     }
 
     if ( psessionEntry->pLimStartBssReq ) 
     {
       PopulateDot11fWPA( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
-          &frm.WPA );
+          &pFrm->WPA );
       PopulateDot11fRSN( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
-          &frm.RSN );
+          &pFrm->RSN );
     }
 
-    PopulateDot11fWMM( pMac, &frm.WMMInfoAp, &frm.WMMParams, &frm.WMMCaps, psessionEntry );
+    PopulateDot11fWMM( pMac, &pFrm->WMMInfoAp, &pFrm->WMMParams, &pFrm->WMMCaps, psessionEntry );
 
 #if defined(FEATURE_WLAN_WAPI)
     if( psessionEntry->pLimStartBssReq ) 
     {
       PopulateDot11fWAPI( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
-          &frm.WAPI );
+          &pFrm->WAPI );
     }
 
 #endif // defined(FEATURE_WLAN_WAPI)
 
 
-    nStatus = dot11fGetPackedProbeResponseSize( pMac, &frm, &nPayload );
+    nStatus = dot11fGetPackedProbeResponseSize( pMac, pFrm, &nPayload );
     if ( DOT11F_FAILED( nStatus ) )
     {
         limLog( pMac, LOGP, FL("Failed to calculate the packed size f"
@@ -655,6 +662,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                       &addnIEPresent) != eSIR_SUCCESS)
     {
         limLog(pMac, LOGP, FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_FLAG"));
+        palFreeMemory(pMac->hHdd, pFrm);
         return;
     }
 
@@ -665,6 +673,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             PELOGE(limLog(pMac, LOGE,
                  FL("Unable to allocate memory to store addn IE"));)
+            palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
         //Probe rsp IE available
@@ -673,6 +682,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             limLog(pMac, LOGP, FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA1 length"));
             palFreeMemory(pMac->hHdd, addIE);
+            palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
         if (addnIE1Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA1_LEN && addnIE1Len &&
@@ -685,6 +695,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                 limLog(pMac, LOGP,
                      FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA1 String"));
                 palFreeMemory(pMac->hHdd, addIE);
+                palFreeMemory(pMac->hHdd, pFrm);
                 return;
             }
         }
@@ -695,6 +706,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             limLog(pMac, LOGP, FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA2 length"));
             palFreeMemory(pMac->hHdd, addIE);
+            palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
         if (addnIE2Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA2_LEN && addnIE2Len &&
@@ -707,6 +719,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                 limLog(pMac, LOGP,
                      FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA2 String"));
                 palFreeMemory(pMac->hHdd, addIE);
+                palFreeMemory(pMac->hHdd, pFrm);
                 return;
             }
         }
@@ -717,6 +730,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             limLog(pMac, LOGP, FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA3 length"));
             palFreeMemory(pMac->hHdd, addIE);
+            palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
         if (addnIE3Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA3_LEN && addnIE3Len &&
@@ -730,6 +744,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                 limLog(pMac, LOGP,
                      FL("Unable to get WNI_CFG_PROBE_RSP_ADDNIE_DATA3 String"));
                 palFreeMemory(pMac->hHdd, addIE);
+                palFreeMemory(pMac->hHdd, pFrm);
                 return;
             }
         }
@@ -741,6 +756,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
             limLog(pMac, LOGP,
                  FL("Unable to get final Additional IE for Probe Req"));
             palFreeMemory(pMac->hHdd, addIE);
+                palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
         nBytes = nBytes + totalAddnIeLen;
@@ -774,6 +790,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             palFreeMemory(pMac->hHdd, addIE);
         }
+        palFreeMemory(pMac->hHdd, pFrm);
         return;
     }
 
@@ -794,6 +811,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             palFreeMemory(pMac->hHdd, addIE);
         }
+        palFreeMemory(pMac->hHdd, pFrm);
         return;
     }
 
@@ -802,7 +820,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
     // That done, pack the Probe Response:
-    nStatus = dot11fPackProbeResponse( pMac, &frm, pFrame + sizeof(tSirMacMgmtHdr),
+    nStatus = dot11fPackProbeResponse( pMac, pFrm, pFrame + sizeof(tSirMacMgmtHdr),
                                        nPayload, &nPayload );
     if ( DOT11F_FAILED( nStatus ) )
     {
@@ -813,6 +831,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         {
             palFreeMemory(pMac->hHdd, addIE);
         }
+        palFreeMemory(pMac->hHdd, pFrm);
         return;                 // allocated!
     }
     else if ( DOT11F_WARNED( nStatus ) )
@@ -846,6 +865,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
             {
                 palFreeMemory(pMac->hHdd, addIE);
             }
+            palFreeMemory(pMac->hHdd, pFrm);
             return;
         }
     }
@@ -888,6 +908,10 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     {
         palFreeMemory(pMac->hHdd, addIE);
     }
+
+    palFreeMemory(pMac->hHdd, pFrm);
+    return;
+
 
 } // End limSendProbeRspMgmtFrame.
 

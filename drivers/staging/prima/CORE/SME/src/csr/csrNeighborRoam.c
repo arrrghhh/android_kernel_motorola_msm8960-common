@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -2332,7 +2332,9 @@ void csrNeighborRoamClose(tpAniSirGlobal pMac)
 
     /* Free the profile.. */ 
     csrReleaseProfile(pMac, &pNeighborRoamInfo->csrNeighborRoamProfile);
-
+#ifdef FEATURE_WLAN_LFR    
+    csrRoamFreeConnectProfile(pMac, &pNeighborRoamInfo->prevConnProfile);
+#endif
 #ifdef WLAN_FEATURE_VOWIFI_11R
     pMac->roam.neighborRoamInfo.FTRoamInfo.currentNeighborRptRetryNum = 0;
     palTimerFree(pMac->hHdd, pMac->roam.neighborRoamInfo.FTRoamInfo.preAuthRspWaitTimer);

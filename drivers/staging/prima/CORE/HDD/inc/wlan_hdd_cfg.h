@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1067,6 +1067,14 @@ typedef enum
 #define CFG_SHORT_GI_40MHZ_DEFAULT             1
 
 
+/*
+ * Scan Aging timeout value in seconds
+ */
+#define CFG_SCAN_AGING_PARAM_NAME          "gScanAgingTime"
+#define CFG_SCAN_AGING_PARAM_MIN           ( 0 )
+#define CFG_SCAN_AGING_PARAM_MAX           ( 200 )
+#define CFG_SCAN_AGING_PARAM_DEFAULT       ( 60 )
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -1314,6 +1322,7 @@ typedef struct
 #ifdef WLAN_FEATURE_P2P
    v_BOOL_t                    isP2pDeviceAddrAdministrated;
 #endif
+   v_U8_t                      scanAgingTimeout;
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation

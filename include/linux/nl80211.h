@@ -483,6 +483,16 @@
  *	more background information, see
  *	http://wireless.kernel.org/en/users/Documentation/WoWLAN.
  *
+ * @NL80211_CMD_SET_MAC_ACL: sets ACL for MAC address based access control.
+ *      This is to be used with the drivers advertising the support of MAC
+ *      address based access control. List of MAC addresses is passed in
+ *      %NL80211_ATTR_MAC_ADDRS and ACL policy is passed in
+ *      %NL80211_ATTR_ACL_POLICY. Driver will enable ACL with this list, if it
+ *      is not already done. The new list will replace any existing list. Driver
+ *      will clear its ACL when the list of MAC addresses passed is empty. This
+ *      command is used in AP/P2P GO mode. Driver has to make sure to clear its
+ *      ACL list during %NL80211_CMD_STOP_AP.
+ *
  * @NL80211_CMD_SET_REKEY_OFFLOAD: This command is used give the driver
  *	the necessary information for supporting GTK rekey offload. This
  *	feature is typically used during WoWLAN. The configuration data
@@ -654,6 +664,32 @@ enum nl80211_commands {
 	NL80211_CMD_PROBE_CLIENT,
 
 	NL80211_CMD_REGISTER_BEACONS,
+
+	NL80211_CMD_UNEXPECTED_4ADDR_FRAME,
+
+	NL80211_CMD_SET_NOACK_MAP,
+
+
+	NL80211_CMD_CH_SWITCH_NOTIFY,
+
+	NL80211_CMD_START_P2P_DEVICE,
+	NL80211_CMD_STOP_P2P_DEVICE,
+
+	NL80211_CMD_CONN_FAILED,
+
+	NL80211_CMD_SET_MCAST_RATE,
+
+	NL80211_CMD_SET_MAC_ACL,
+
+	NL80211_CMD_RADAR_DETECT,
+
+	NL80211_CMD_GET_PROTOCOL_FEATURES,
+
+	NL80211_CMD_UPDATE_FT_IES,
+	NL80211_CMD_FT_EVENT,
+
+	NL80211_CMD_CRIT_PROTOCOL_START,
+	NL80211_CMD_CRIT_PROTOCOL_STOP,
 
 	/* add new commands above here */
 
@@ -1129,6 +1165,19 @@ enum nl80211_commands {
  *	with support for the features listed in this attribute, see
  *	&enum nl80211_ap_sme_features.
  *
+ * @NL80211_ATTR_DONT_WAIT_FOR_ACK: Used with %NL80211_CMD_FRAME, this tells
+ *      the driver to not wait for an acknowledgement. Note that due to this,
+ *      it will also not give a status callback nor return a cookie. This is
+ *      mostly useful for probe responses to save airtime.
+ *
+ * @NL80211_ATTR_FEATURE_FLAGS: This u32 attribute contains flags from
+ *      &enum nl80211_feature_flags and is advertised in wiphy information.
+ * @NL80211_ATTR_PROBE_RESP_OFFLOAD: Indicates that the HW responds to probe
+ *
+ *      requests while operating in AP-mode.
+ *      This attribute holds a bitmap of the supported protocols for
+ *      offloading (see &enum nl80211_probe_resp_offload_support_attr).
+ *
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use
  */
@@ -1358,6 +1407,76 @@ enum nl80211_attrs {
 	NL80211_ATTR_TDLS_EXTERNAL_SETUP,
 
 	NL80211_ATTR_DEVICE_AP_SME,
+
+	NL80211_ATTR_DONT_WAIT_FOR_ACK,
+
+	NL80211_ATTR_FEATURE_FLAGS,
+
+	NL80211_ATTR_PROBE_RESP_OFFLOAD,
+
+	NL80211_ATTR_PROBE_RESP,
+
+	NL80211_ATTR_DFS_REGION,
+
+	NL80211_ATTR_DISABLE_HT,
+	NL80211_ATTR_HT_CAPABILITY_MASK,
+
+	NL80211_ATTR_NOACK_MAP,
+
+	NL80211_ATTR_INACTIVITY_TIMEOUT,
+
+	NL80211_ATTR_RX_SIGNAL_DBM,
+
+	NL80211_ATTR_BG_SCAN_PERIOD,
+
+	NL80211_ATTR_WDEV,
+
+	NL80211_ATTR_USER_REG_HINT_TYPE,
+
+	NL80211_ATTR_CONN_FAILED_REASON,
+
+	NL80211_ATTR_SAE_DATA,
+
+	NL80211_ATTR_VHT_CAPABILITY,
+
+	NL80211_ATTR_SCAN_FLAGS,
+
+	NL80211_ATTR_CHANNEL_WIDTH,
+	NL80211_ATTR_CENTER_FREQ1,
+	NL80211_ATTR_CENTER_FREQ2,
+
+	NL80211_ATTR_P2P_CTWINDOW,
+	NL80211_ATTR_P2P_OPPPS,
+
+	NL80211_ATTR_LOCAL_MESH_POWER_MODE,
+
+	NL80211_ATTR_ACL_POLICY,
+
+	NL80211_ATTR_MAC_ADDRS,
+
+	NL80211_ATTR_MAC_ACL_MAX,
+
+	NL80211_ATTR_RADAR_EVENT,
+
+	NL80211_ATTR_EXT_CAPA,
+	NL80211_ATTR_EXT_CAPA_MASK,
+
+	NL80211_ATTR_STA_CAPABILITY,
+	NL80211_ATTR_STA_EXT_CAPABILITY,
+
+	NL80211_ATTR_PROTOCOL_FEATURES,
+	NL80211_ATTR_SPLIT_WIPHY_DUMP,
+
+	NL80211_ATTR_DISABLE_VHT,
+	NL80211_ATTR_VHT_CAPABILITY_MASK,
+
+	NL80211_ATTR_MDID,
+	NL80211_ATTR_IE_RIC,
+
+	NL80211_ATTR_CRIT_PROT_ID,
+	NL80211_ATTR_MAX_CRIT_PROT_DURATION,
+
+	NL80211_ATTR_PEER_AID,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -2666,5 +2785,56 @@ enum nl80211_tdls_operation {
 enum nl80211_ap_sme_features {
 };
  */
+
+/**
+ * enum nl80211_probe_resp_offload_support_attr - optional supported
+ *     protocols for probe-response offloading by the driver/FW.
+ *     To be used with the %NL80211_ATTR_PROBE_RESP_OFFLOAD attribute.
+ *     Each enum value represents a bit in the bitmap of supported
+ *     protocols. Typically a subset of probe-requests belonging to a
+ *     supported protocol will be excluded from offload and uploaded
+ *     to the host.
+ *
+ * @NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS: Support for WPS ver. 1
+ * @NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS2: Support for WPS ver. 2
+ * @NL80211_PROBE_RESP_OFFLOAD_SUPPORT_P2P: Support for P2P
+ * @NL80211_PROBE_RESP_OFFLOAD_SUPPORT_80211U: Support for 802.11u
+ */
+
+enum nl80211_probe_resp_offload_support_attr {
+	NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS =        1<<0,
+	NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS2 =       1<<1,
+	NL80211_PROBE_RESP_OFFLOAD_SUPPORT_P2P =        1<<2,
+	NL80211_PROBE_RESP_OFFLOAD_SUPPORT_80211U =     1<<3,
+};
+
+/**
+ * enum nl80211_connect_failed_reason - connection request failed reasons
+ * @NL80211_CONN_FAIL_MAX_CLIENTS: Maximum number of clients that can be
+ *  handled by the AP is reached.
+ * @NL80211_CONN_FAIL_BLOCKED_CLIENT: Connection request is rejected due to ACL.
+ */
+enum nl80211_connect_failed_reason {
+	NL80211_CONN_FAIL_MAX_CLIENTS,
+	NL80211_CONN_FAIL_BLOCKED_CLIENT,
+};
+
+/**
+ * enum nl80211_acl_policy - access control policy
+ *
+ * Access control policy is applied on a MAC list set by
+ * %NL80211_CMD_NEW_BEACON and %NL80211_CMD_SET_MAC_ACL, to
+ * be used with %NL80211_ATTR_ACL_POLICY.
+ *
+ * @NL80211_ACL_POLICY_ACCEPT_UNLESS_LISTED: Deny stations which are
+ *   listed in ACL, i.e. allow all the stations which are not listed
+ *  in ACL to authenticate.
+ * @NL80211_ACL_POLICY_DENY_UNLESS_LISTED: Allow the stations which are listed
+ *    in ACL, i.e. deny all the stations which are not listed in ACL.
+ */
+enum nl80211_acl_policy {
+	NL80211_ACL_POLICY_ACCEPT_UNLESS_LISTED,
+	NL80211_ACL_POLICY_DENY_UNLESS_LISTED,
+};
 
 #endif /* __LINUX_NL80211_H */

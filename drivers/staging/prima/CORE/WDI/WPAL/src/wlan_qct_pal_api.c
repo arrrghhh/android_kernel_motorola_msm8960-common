@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -45,6 +45,7 @@
 
 #include "dma-mapping.h"
 #include <mach/subsystem_restart.h>
+#include <linux/wcnss_wlan.h>
 
 typedef struct sPalStruct
 {
@@ -388,5 +389,19 @@ wpt_status wpalRivaSubystemRestart(void)
 void wpalWlanReload(void)
 {
    vos_wlanRestart();
+   return;
+}
+
+/*---------------------------------------------------------------------------
+    wpalWcnssResetIntr -  Trigger the reset FIQ to Riva
+
+    Param:
+       None
+    Return:
+       NONE
+---------------------------------------------------------------------------*/
+void wpalWcnssResetIntr(void)
+{
+   wcnss_reset_intr();
    return;
 }

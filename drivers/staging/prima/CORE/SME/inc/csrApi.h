@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -772,6 +772,7 @@ typedef struct tagCsrRoamProfile
     tANI_BOOLEAN bWPSAssociation;
 
 #ifdef WLAN_SOFTAP_FEATURE
+    tANI_U8 ieee80211d;
     tANI_U8 privacy;
     tANI_BOOLEAN fwdWPSPBCProbeReq;
     tAniAuthType csr80211AuthType;
@@ -939,6 +940,7 @@ typedef struct tagCsrConfigParam
     * (apprx 1.3 sec) */
     tANI_BOOLEAN fEnableDFSChnlScan;
 
+    tANI_U8 scanCfgAgingTime;
 }tCsrConfigParam;   
 
 //Tush
