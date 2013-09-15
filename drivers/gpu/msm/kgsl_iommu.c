@@ -734,13 +734,14 @@ static int kgsl_iommu_setup_defaultpagetable(struct kgsl_mmu *mmu)
 				mmu->defaultpagetable;
 	/* Map the IOMMU regsiters to only defaultpagetable */
 	for (i = 0; i < iommu->unit_count; i++) {
-		iommu->iommu_units[i].reg_map.priv |= KGSL_MEMFLAGS_GLOBAL;
+		iommu->iommu_units[i].reg_map.priv |=
+					KGSL_MEMDESC_GLOBAL;
 		status = kgsl_mmu_map(pagetable,
 			&(iommu->iommu_units[i].reg_map),
 			GSL_PT_PAGE_RV | GSL_PT_PAGE_WV);
 		if (status) {
 			iommu->iommu_units[i].reg_map.priv &=
-							~KGSL_MEMFLAGS_GLOBAL;
+							~KGSL_MEMDESC_GLOBAL;
 			goto err;
 		}
 	}
@@ -757,7 +758,7 @@ err:
 	for (i--; i >= 0; i--) {
 		kgsl_mmu_unmap(pagetable,
 				&(iommu->iommu_units[i].reg_map));
-		iommu->iommu_units[i].reg_map.priv &= ~KGSL_MEMFLAGS_GLOBAL;
+		iommu->iommu_units[i].reg_map.priv &= ~KGSL_MEMDESC_GLOBAL;
 	}
 	if (mmu->priv_bank_table) {
 		kgsl_mmu_putpagetable(mmu->priv_bank_table);

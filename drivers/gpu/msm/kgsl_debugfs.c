@@ -93,6 +93,16 @@ static const char *memtype_str(int memtype)
 	return "unknown";
 }
 
+static char get_alignflag(const struct kgsl_memdesc *m)
+{
+	int align = kgsl_memdesc_get_align(m);
+	if (align >= ilog2(SZ_1M))
+		return 'L';
+	else if (align >= ilog2(SZ_64K))
+		return 'l';
+	return '-';
+}
+
 static int process_mem_print(struct seq_file *s, void *unused)
 {
 	struct kgsl_mem_entry *entry;
@@ -100,34 +110,25 @@ static int process_mem_print(struct seq_file *s, void *unused)
 	struct kgsl_process_private *private = s->private;
 	char flags[4];
 	char usage[16];
-	unsigned int align;
 
 	spin_lock(&private->mem_lock);
-	seq_printf(s, "%8s %8s %5s %10s %16s %5s\n",
-		   "gpuaddr", "size", "flags", "type", "usage", "sglen");
+	seq_printf(s, "%8s %8s %5s %5s %10s %16s %5s\n",
+		   "gpuaddr", "size", "id", "flags", "type", "usage", "sglen");
 	for (node = rb_first(&private->mem_rb); node; node = rb_next(node)) {
 		struct kgsl_memdesc *m;
 
 		entry = rb_entry(node, struct kgsl_mem_entry, node);
 		m = &entry->memdesc;
 
-		flags[0] = m->priv & KGSL_MEMFLAGS_GLOBAL ?  'g' : '-';
-		flags[1] = m->priv & KGSL_MEMFLAGS_GPUREADONLY ? 'r' : '-';
-
-		align = (m->priv & KGSL_MEMALIGN_MASK) >> KGSL_MEMALIGN_SHIFT;
-		if (align >= ilog2(SZ_1M))
-			flags[2] = 'L';
-		else if (align >= ilog2(SZ_64K))
-			flags[2] = 'l';
-		else
-			flags[2] = '-';
-
+		flags[0] = m->priv & KGSL_MEMDESC_GLOBAL ?  'g' : '-';
+		flags[1] = m->flags & KGSL_MEMFLAGS_GPUREADONLY ? 'r' : '-';
+		flags[2] = get_alignflag(m);
 		flags[3] = '\0';
 
-		kgsl_get_memory_usage(usage, sizeof(usage), m->priv);
+		kgsl_get_memory_usage(usage, sizeof(usage), m->flags);
 
-		seq_printf(s, "%08x %8d %5s %10s %16s %5d\n",
-			   m->gpuaddr, m->size, flags,
+		seq_printf(s, "%08x %8d %5d %5s %10s %16s %5d\n",
+			   m->gpuaddr, m->size, entry->id, flags,
 			   memtype_str(entry->memtype), usage, m->sglen);
 	}
 	spin_unlock(&private->mem_lock);

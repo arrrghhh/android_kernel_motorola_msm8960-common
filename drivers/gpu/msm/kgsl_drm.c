@@ -237,6 +237,9 @@ kgsl_gem_alloc_memory(struct drm_gem_object *obj)
 		}
 	}
 
+	/* Set the flags for the memdesc (probably 0, unless it is cached) */
+	priv->memdesc.priv = 0;
+
 	if (TYPE_IS_PMEM(priv->type)) {
 		int type;
 
@@ -246,8 +249,7 @@ kgsl_gem_alloc_memory(struct drm_gem_object *obj)
 				result = kgsl_sharedmem_ebimem_user(
 						&priv->memdesc,
 						priv->pagetable,
-						obj->size * priv->bufcount,
-						0);
+						obj->size * priv->bufcount);
 				if (result) {
 					DRM_ERROR(
 					"Unable to allocate PMEM memory\n");
@@ -265,7 +267,7 @@ kgsl_gem_alloc_memory(struct drm_gem_object *obj)
 
 		result = kgsl_sharedmem_page_alloc_user(&priv->memdesc,
 					priv->pagetable,
-					obj->size * priv->bufcount, 0);
+					obj->size * priv->bufcount);
 
 		if (result != 0) {
 				DRM_ERROR(

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -294,6 +294,8 @@ TRACE_EVENT(kgsl_mem_alloc,
 		__field(unsigned int, size)
 		__field(unsigned int, tgid)
 		__array(char, usage, 16)
+		__field(unsigned int, id)
+		__field(unsigned int, flags)
 	),
 
 	TP_fast_assign(
@@ -301,13 +303,15 @@ TRACE_EVENT(kgsl_mem_alloc,
 		__entry->size = mem_entry->memdesc.size;
 		__entry->tgid = mem_entry->priv->pid;
 		kgsl_get_memory_usage(__entry->usage, sizeof(__entry->usage),
-				     mem_entry->memdesc.priv);
+				     mem_entry->memdesc.flags);
+		__entry->id = mem_entry->id;
+		__entry->flags = mem_entry->memdesc.flags;
 	),
 
 	TP_printk(
-		"gpuaddr=0x%08x size=%d tgid=%d usage=%s",
+		"gpuaddr=0x%08x size=%d tgid=%d usage=%s id=%d flags=0x%08x",
 		__entry->gpuaddr, __entry->size, __entry->tgid,
-		__entry->usage
+		__entry->usage, __entry->id, __entry->flags
 	)
 );
 
@@ -324,6 +328,7 @@ TRACE_EVENT(kgsl_mem_map,
 		__field(int, type)
 		__field(unsigned int, tgid)
 		__array(char, usage, 16)
+		__field(unsigned int, id)
 	),
 
 	TP_fast_assign(
@@ -333,14 +338,15 @@ TRACE_EVENT(kgsl_mem_map,
 		__entry->type = mem_entry->memtype;
 		__entry->tgid = mem_entry->priv->pid;
 		kgsl_get_memory_usage(__entry->usage, sizeof(__entry->usage),
-				     mem_entry->memdesc.priv);
+				     mem_entry->memdesc.flags);
+		__entry->id = mem_entry->id;
 	),
 
 	TP_printk(
-		"gpuaddr=0x%08x size=%d type=%d fd=%d tgid=%d usage %s",
+		"gpuaddr=0x%08x size=%d type=%d fd=%d tgid=%d usage=%s id=%d",
 		__entry->gpuaddr, __entry->size,
 		__entry->type, __entry->fd, __entry->tgid,
-		__entry->usage
+		__entry->usage, __entry->id
 	)
 );
 
@@ -357,6 +363,7 @@ TRACE_EVENT(kgsl_mem_free,
 		__field(int, fd)
 		__field(unsigned int, tgid)
 		__array(char, usage, 16)
+		__field(unsigned int, id)
 	),
 
 	TP_fast_assign(
@@ -365,13 +372,14 @@ TRACE_EVENT(kgsl_mem_free,
 		__entry->type = mem_entry->memtype;
 		__entry->tgid = mem_entry->priv->pid;
 		kgsl_get_memory_usage(__entry->usage, sizeof(__entry->usage),
-				     mem_entry->memdesc.priv);
+				     mem_entry->memdesc.flags);
+		__entry->id = mem_entry->id;
 	),
 
 	TP_printk(
-		"gpuaddr=0x%08x size=%d type=%d tgid=%d usage=%s",
+		"gpuaddr=0x%08x size=%d type=%d tgid=%d usage=%s id=%d",
 		__entry->gpuaddr, __entry->size, __entry->type,
-		__entry->tgid, __entry->usage
+		__entry->tgid, __entry->usage, __entry->id
 	)
 );
 
@@ -388,6 +396,7 @@ DECLARE_EVENT_CLASS(kgsl_mem_timestamp_template,
 		__field(unsigned int, size)
 		__field(int, type)
 		__array(char, usage, 16)
+		__field(unsigned int, id)
 		__field(unsigned int, drawctxt_id)
 		__field(unsigned int, curr_ts)
 		__field(unsigned int, free_ts)
@@ -398,7 +407,8 @@ DECLARE_EVENT_CLASS(kgsl_mem_timestamp_template,
 		__entry->gpuaddr = mem_entry->memdesc.gpuaddr;
 		__entry->size = mem_entry->memdesc.size;
 		kgsl_get_memory_usage(__entry->usage, sizeof(__entry->usage),
-				     mem_entry->memdesc.priv);
+				     mem_entry->memdesc.flags);
+		__entry->id = mem_entry->id;
 		__entry->drawctxt_id = id;
 		__entry->type = mem_entry->memtype;
 		__entry->curr_ts = curr_ts;
@@ -406,13 +416,14 @@ DECLARE_EVENT_CLASS(kgsl_mem_timestamp_template,
 	),
 
 	TP_printk(
-		"d_name=%s gpuaddr=0x%08x size=%d type=%d usage=%s ctx=%u"
+		"d_name=%s gpuaddr=0x%08x size=%d type=%d usage=%s id=%d ctx=%u"
 		" curr_ts=0x%x free_ts=0x%x",
 		__get_str(device_name),
 		__entry->gpuaddr,
 		__entry->size,
 		__entry->type,
 		__entry->usage,
+		__entry->id,
 		__entry->drawctxt_id,
 		__entry->curr_ts,
 		__entry->free_ts
@@ -506,10 +517,45 @@ TRACE_EVENT(kgsl_mmu_pagefault,
 	),
 
 	TP_printk(
-		"d_name=%s page=0x%08x pt=%d op=%s\n",
+		"d_name=%s page=0x%08x pt=%d op=%s",
 		__get_str(device_name), __entry->page, __entry->pt,
 		__get_str(op)
 	)
+);
+
+TRACE_EVENT(kgsl_register_event,
+		TP_PROTO(unsigned int id, unsigned int timestamp),
+		TP_ARGS(id, timestamp),
+		TP_STRUCT__entry(
+			__field(unsigned int, id)
+			__field(unsigned int, timestamp)
+		),
+		TP_fast_assign(
+			__entry->id = id;
+			__entry->timestamp = timestamp;
+		),
+		TP_printk(
+			"ctx=%d ts=%d",
+			__entry->id, __entry->timestamp)
+);
+
+TRACE_EVENT(kgsl_fire_event,
+		TP_PROTO(unsigned int id, unsigned int ts,
+			unsigned int age),
+		TP_ARGS(id, ts, age),
+		TP_STRUCT__entry(
+			__field(unsigned int, id)
+			__field(unsigned int, ts)
+			__field(unsigned int, age)
+		),
+		TP_fast_assign(
+			__entry->id = id;
+			__entry->ts = ts;
+			__entry->age = age;
+		),
+		TP_printk(
+			"ctx=%d ts=%d age=%u",
+			__entry->id, __entry->ts, __entry->age)
 );
 
 #endif /* _KGSL_TRACE_H */

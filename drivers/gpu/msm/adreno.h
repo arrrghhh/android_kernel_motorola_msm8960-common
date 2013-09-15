@@ -32,7 +32,7 @@
 /* Flags to control command packet settings */
 #define KGSL_CMD_FLAGS_NONE             0x00000000
 #define KGSL_CMD_FLAGS_PMODE		0x00000001
-#define KGSL_CMD_FLAGS_DUMMY_INTR_CMD	0x00000002
+#define KGSL_CMD_FLAGS_INTERNAL_ISSUE	0x00000002
 
 /* Command identifiers */
 #define KGSL_CONTEXT_TO_MEM_IDENTIFIER	0x2EADBEEF
@@ -114,8 +114,9 @@ struct adreno_gpudev {
 					struct adreno_context *);
 	irqreturn_t (*irq_handler)(struct adreno_device *);
 	void (*irq_control)(struct adreno_device *, int);
+	unsigned int (*irq_pending)(struct adreno_device *);
 	void * (*snapshot)(struct adreno_device *, void *, int *, int);
-	void (*rb_init)(struct adreno_device *, struct adreno_ringbuffer *);
+	int (*rb_init)(struct adreno_device *, struct adreno_ringbuffer *);
 	void (*start)(struct adreno_device *);
 	unsigned int (*busy_cycles)(struct adreno_device *);
 };

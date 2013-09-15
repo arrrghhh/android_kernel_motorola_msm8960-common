@@ -155,6 +155,8 @@ int adreno_drawctxt_create(struct kgsl_device *device,
 	if (drawctxt == NULL)
 		return -ENOMEM;
 
+	drawctxt->pid = task_pid_nr(current);
+	strlcpy(drawctxt->pid_name, current->comm, TASK_COMM_LEN);
 	drawctxt->pagetable = pagetable;
 	drawctxt->bin_base_offset = 0;
 	drawctxt->id = context->id;
@@ -168,6 +170,14 @@ int adreno_drawctxt_create(struct kgsl_device *device,
 
 	if (flags & KGSL_CONTEXT_PER_CONTEXT_TS)
 		drawctxt->flags |= CTXT_FLAGS_PER_CONTEXT_TS;
+
+	if (flags & KGSL_CONTEXT_USER_GENERATED_TS) {
+		if (!(flags & KGSL_CONTEXT_PER_CONTEXT_TS)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		drawctxt->flags |= CTXT_FLAGS_USER_GENERATED_TS;
+	}
 
 	ret = adreno_dev->gpudev->ctxt_create(adreno_dev, drawctxt);
 	if (ret)
@@ -221,10 +231,13 @@ void adreno_drawctxt_destroy(struct kgsl_device *device,
 				     CTXT_FLAGS_GMEM_SHADOW |
 				     CTXT_FLAGS_STATE_SHADOW);
 
+		drawctxt->flags |= CTXT_FLAGS_BEING_DESTROYED;
+
 		adreno_drawctxt_switch(adreno_dev, NULL, 0);
 	}
 
-	adreno_idle(device);
+	if (device->state != KGSL_STATE_HUNG)
+		adreno_idle(device);
 
 	if (adreno_is_a20x(adreno_dev) && adreno_dev->drawctxt_active)
 		kgsl_setstate(&device->mmu, adreno_dev->drawctxt_active->id,
