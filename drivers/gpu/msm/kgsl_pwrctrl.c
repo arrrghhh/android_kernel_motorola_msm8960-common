@@ -20,6 +20,7 @@
 #include "kgsl_pwrscale.h"
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
+#include "kgsl_sharedmem.h"
 
 #define KGSL_PWRFLAGS_POWER_ON 0
 #define KGSL_PWRFLAGS_CLK_ON   1
@@ -863,7 +864,8 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	if (pdata->set_grp_async != NULL)
 		pdata->set_grp_async();
 
-	if (pdata->num_levels > KGSL_MAX_PWRLEVELS) {
+	if (pdata->num_levels > KGSL_MAX_PWRLEVELS ||
+	    pdata->num_levels < 1) {
 		KGSL_PWR_ERR(device, "invalid power level count: %d\n",
 					 pdata->num_levels);
 		result = -EINVAL;
@@ -1182,6 +1184,7 @@ int kgsl_pwrctrl_sleep(struct kgsl_device *device)
 		break;
 	case KGSL_STATE_SLEEP:
 		status = _sleep(device);
+		kgsl_mmu_disable_clk_on_ts(&device->mmu, 0, false);
 		break;
 	case KGSL_STATE_SLUMBER:
 		status = _slumber(device);
@@ -1202,6 +1205,11 @@ EXPORT_SYMBOL(kgsl_pwrctrl_sleep);
 void kgsl_pwrctrl_wake(struct kgsl_device *device)
 {
 	int status;
+	unsigned int context_id;
+	unsigned int state = device->state;
+	unsigned int ts_processed = 0xdeaddead;
+	struct kgsl_context *context;
+
 	kgsl_pwrctrl_request_state(device, KGSL_STATE_ACTIVE);
 	switch (device->state) {
 	case KGSL_STATE_SLUMBER:
@@ -1215,6 +1223,17 @@ void kgsl_pwrctrl_wake(struct kgsl_device *device)
 	case KGSL_STATE_SLEEP:
 		kgsl_pwrctrl_axi(device, KGSL_PWRFLAGS_ON);
 		kgsl_pwrscale_wake(device);
+		kgsl_sharedmem_readl(&device->memstore,
+			(unsigned int *) &context_id,
+			KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL,
+				current_context));
+		context = idr_find(&device->context_idr, context_id);
+		if (context)
+			ts_processed = kgsl_readtimestamp(device, context,
+				KGSL_TIMESTAMP_RETIRED);
+		KGSL_PWR_INFO(device, "Wake from %s state. CTXT: %d RTRD TS: %08X\n",
+			kgsl_pwrstate_to_str(state),
+			context ? context->id : -1, ts_processed);
 		/* fall through */
 	case KGSL_STATE_NAP:
 		/* Turn on the core clocks */
