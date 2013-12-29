@@ -36,11 +36,13 @@ static char core_name[NR_CPUS][10];
 static void msm_gov_check_limits(struct cpufreq_policy *policy)
 {
 	struct msm_gov *gov = &per_cpu(msm_gov_info, policy->cpu);
+	struct msm_dcvs_freq *dcvs_notifier =
+			&(per_cpu(msm_gov_info, policy->cpu).gov_notifier);
 
 	if (policy->max < gov->cur_freq)
 		__cpufreq_driver_target(policy, policy->max,
 				CPUFREQ_RELATION_H);
-	else if (policy->min > gov->min_freq)
+	else if (policy->min > gov->cur_freq)
 		__cpufreq_driver_target(policy, policy->min,
 				CPUFREQ_RELATION_L);
 	else
@@ -50,6 +52,7 @@ static void msm_gov_check_limits(struct cpufreq_policy *policy)
 	gov->cur_freq = policy->cur;
 	gov->min_freq = policy->min;
 	gov->max_freq = policy->max;
+	msm_dcvs_update_limits(dcvs_notifier);
 }
 
 static int msm_dcvs_freq_set(struct msm_dcvs_freq *self,
@@ -66,13 +69,17 @@ static int msm_dcvs_freq_set(struct msm_dcvs_freq *self,
 	if (freq > gov->max_freq)
 		freq = gov->max_freq;
 
-	ret = __cpufreq_driver_target(gov->policy, freq, CPUFREQ_RELATION_L);
-	gov->cur_freq = gov->policy->cur;
-
 	mutex_unlock(&per_cpu(gov_mutex, gov->cpu));
 
-	if (!ret)
-		return gov->cur_freq;
+	ret = cpufreq_driver_target(gov->policy, freq, CPUFREQ_RELATION_L);
+
+	if (!ret) {
+		gov->cur_freq = cpufreq_quick_get(gov->cpu);
+		if (freq != gov->cur_freq)
+			pr_err("cpu %d freq %u gov->cur_freq %u didn't match",
+						gov->cpu, freq, gov->cur_freq);
+	}
+	ret = gov->cur_freq;
 
 	return ret;
 }
@@ -82,7 +89,12 @@ static unsigned int msm_dcvs_freq_get(struct msm_dcvs_freq *self)
 	struct msm_gov *gov =
 		container_of(self, struct msm_gov, gov_notifier);
 
-	return gov->cur_freq;
+	/*
+	 * the rw_sem in cpufreq is always held when this is called.
+	 * The policy->cur won't be updated in this case - so it is safe to
+	 * access policy->cur
+	 */
+	return gov->policy->cur;
 }
 
 static int cpufreq_governor_msm(struct cpufreq_policy *policy,
@@ -113,9 +125,7 @@ static int cpufreq_governor_msm(struct cpufreq_policy *policy,
 		break;
 
 	case CPUFREQ_GOV_STOP:
-		mutex_lock(&per_cpu(gov_mutex, cpu));
 		msm_dcvs_freq_sink_unregister(dcvs_notifier);
-		mutex_unlock(&per_cpu(gov_mutex, cpu));
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
