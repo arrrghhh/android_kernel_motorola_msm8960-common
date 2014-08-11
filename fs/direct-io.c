@@ -123,6 +123,9 @@ struct dio {
 	int is_async;			/* is IO async ? */
 	int should_dirty;		/* should we mark read pages dirty? */
 	int io_error;			/* IO error in completion path */
+	unsigned long refcount;		/* direct_io_worker() and bios */
+	struct bio *bio_list;		/* singly linked via bi_private */
+	struct task_struct *waiter;	/* waiting task (NULL if none) */
 
 	/* AIO related stuff */
 	struct kiocb *iocb;		/* kiocb */
