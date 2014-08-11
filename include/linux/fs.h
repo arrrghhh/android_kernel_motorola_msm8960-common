@@ -1671,16 +1671,6 @@ struct file_operations {
 
 #define IPERM_FLAG_RCU	0x0001
 
-static inline int file_readable(struct file *filp)
-{
-	return filp && (filp->f_op->read || filp->f_op->aio_read);
-}
-
-static inline int file_writable(struct file *filp)
-{
-	return filp && (filp->f_op->write || filp->f_op->aio_write);
-}
-
 struct inode_operations {
 	struct dentry * (*lookup) (struct inode *,struct dentry *, struct nameidata *);
 	void * (*follow_link) (struct dentry *, struct nameidata *);
