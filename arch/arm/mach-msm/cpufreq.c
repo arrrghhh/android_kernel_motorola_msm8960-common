@@ -1,4 +1,4 @@
--/* arch/arm/mach-msm/cpufreq.c
+/* arch/arm/mach-msm/cpufreq.c
  *
  * MSM architecture cpufreq driver
  *
