@@ -267,8 +267,8 @@ static int nilfs_write_end(struct file *file, struct address_space *mapping,
 }
 
 static ssize_t
-nilfs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *iter,
-		loff_t offset)
+nilfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
+		loff_t offset, unsigned long nr_segs)
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
@@ -278,8 +278,8 @@ nilfs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *iter,
 		return 0;
 
 	/* Needs synchronization with the cleaner */
-	size = blockdev_direct_IO(rw, iocb, inode, iter, offset,
-				  nilfs_get_block);
+	size = blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
+				  offset, nr_segs, nilfs_get_block, NULL);
 
 	/*
 	 * In case of error extending write may have instantiated a few
@@ -287,7 +287,7 @@ nilfs_direct_IO(int rw, struct kiocb *iocb, struct iov_iter *iter,
 	 */
 	if (unlikely((rw & WRITE) && size < 0)) {
 		loff_t isize = i_size_read(inode);
-		loff_t end = offset + iov_iter_count(iter);
+		loff_t end = offset + iov_length(iov, nr_segs);
 
 		if (end > isize)
 			vmtruncate(inode, isize);

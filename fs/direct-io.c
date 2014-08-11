@@ -1156,11 +1156,11 @@ direct_io_worker(int rw, struct kiocb *iocb, struct inode *inode,
  *    For reads and writes both i_mutex and i_alloc_sem are not held on
  *    entry and are never taken.
  */
-static inline ssize_t
-do_blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
-	struct block_device *bdev, struct iov_iter *iter, loff_t offset,
-	get_block_t get_block, dio_iodone_t end_io, dio_submit_t submit_io,
-	int flags)
+ssize_t
+__blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
+	struct block_device *bdev, const struct iovec *iov, loff_t offset, 
+	unsigned long nr_segs, get_block_t get_block, dio_iodone_t end_io,
+	dio_submit_t submit_io,	int flags)
 {
 	int seg;
 	size_t size;
@@ -1171,12 +1171,6 @@ do_blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
 	ssize_t retval = -EINVAL;
 	loff_t end = offset;
 	struct dio *dio;
-	struct dio_submit sdio = { 0, };
-	unsigned long user_addr;
-	size_t bytes;
-	struct buffer_head map_bh = { 0, };
-	const struct iovec *iov = iov_iter_iovec(iter);
-	unsigned long nr_segs = iter->nr_segs;
 
 	if (rw & WRITE)
 		rw = WRITE_ODIRECT;
@@ -1259,27 +1253,4 @@ do_blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
 out:
 	return retval;
 }
-
-ssize_t
-__blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
-	struct block_device *bdev, struct iov_iter *iter, loff_t offset,
-	get_block_t get_block, dio_iodone_t end_io, dio_submit_t submit_io,
-	int flags)
-{
-	/*
-	 * The block device state is needed in the end to finally
-	 * submit everything.  Since it's likely to be cache cold
-	 * prefetch it here as first thing to hide some of the
-	 * latency.
-	 *
-	 * Attempt to prefetch the pieces we likely need later.
-	 */
-	prefetch(&bdev->bd_disk->part_tbl);
-	prefetch(bdev->bd_queue);
-	prefetch((char *)bdev->bd_queue + SMP_CACHE_BYTES);
-
-	return do_blockdev_direct_IO(rw, iocb, inode, bdev, iter, offset,
-				     get_block, end_io, submit_io, flags);
-}
-
 EXPORT_SYMBOL(__blockdev_direct_IO);

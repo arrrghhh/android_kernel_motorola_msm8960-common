@@ -119,8 +119,8 @@ static ssize_t hfsplus_direct_IO(int rw, struct kiocb *iocb,
 	struct inode *inode = file->f_path.dentry->d_inode->i_mapping->host;
 	ssize_t ret;
 
-	ret = blockdev_direct_IO(rw, iocb, inode, iter, offset,
-				 hfsplus_get_block);
+	ret = blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
+				  offset, nr_segs, hfsplus_get_block, NULL);
 
 	/*
 	 * In case of error extending write may have instantiated a few
@@ -128,7 +128,7 @@ static ssize_t hfsplus_direct_IO(int rw, struct kiocb *iocb,
 	 */
 	if (unlikely((rw & WRITE) && ret < 0)) {
 		loff_t isize = i_size_read(inode);
-		loff_t end = offset + iov_iter_count(iter);
+		loff_t end = offset + iov_length(iov, nr_segs);
 
 		if (end > isize)
 			vmtruncate(inode, isize);
