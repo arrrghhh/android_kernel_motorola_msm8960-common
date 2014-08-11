@@ -75,6 +75,8 @@
 #include <linux/kthread.h>
 #include <linux/splice.h>
 #include <linux/sysfs.h>
+#include <linux/miscdevice.h>
+#include <linux/falloc.h>
 #include <linux/aio.h>
 
 #include <asm/uaccess.h>
