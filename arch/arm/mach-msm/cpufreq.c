@@ -400,7 +400,7 @@ static struct notifier_block __refdata msm_cpufreq_cpu_notifier = {
  * helps the suspend/resume variable get's updated before cpufreq
  * governor tries to change the frequency after coming out of suspend.
  */
->>>>>>> fa0c410... cpufreq/cpufreq_intellidemand: intellidemand cpufreq governor (version 4.0)
+
 static int msm_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	int cpu;
