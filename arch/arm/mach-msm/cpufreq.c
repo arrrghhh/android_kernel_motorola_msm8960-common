@@ -462,10 +462,6 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.attr		= msm_freq_attr,
 };
 
-static struct notifier_block msm_cpufreq_pm_notifier = {
-	.notifier_call = msm_cpufreq_pm_event,
-};
-
 static int __init msm_cpufreq_register(void)
 {
 	int cpu;
