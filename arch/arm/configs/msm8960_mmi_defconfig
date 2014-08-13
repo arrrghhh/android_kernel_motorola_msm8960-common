@@ -1246,6 +1246,7 @@ CONFIG_EEPROM_93CX6=m
 #
 # Motorola secuirty driver
 #
+CONFIG_SEC_DVFS=y
 CONFIG_SEC_DRIVER=y
 CONFIG_HAVE_IDE=y
 # CONFIG_IDE is not set
