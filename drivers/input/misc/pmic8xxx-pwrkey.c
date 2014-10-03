@@ -47,11 +47,6 @@ struct pmic8xxx_pwrkey {
 	int expired;
 	struct wake_lock wake_lock;
 #endif
-	struct hrtimer very_longPress_timer;
-	int do_reboot;
-	struct work_struct buzz_work;
-	void (*do_fbuzz)(void);
-	void (*do_freboot)(void);
 };
 
 #ifdef CONFIG_PM_DEEPSLEEP
@@ -70,40 +65,9 @@ static enum hrtimer_restart longPress_timer_callback(struct hrtimer *timer)
 }
 #endif
 
-static void buzz_notify(struct work_struct *work)
-{
-	struct pmic8xxx_pwrkey *pwrkey =
-		container_of(work, struct pmic8xxx_pwrkey, buzz_work);
-
-	if (pwrkey->do_fbuzz)
-		pwrkey->do_fbuzz();
-}
-
-static enum hrtimer_restart very_longPress_timer_callback(struct hrtimer *timer)
-{
-	struct pmic8xxx_pwrkey *pwrkey =
-		container_of(timer, struct pmic8xxx_pwrkey, very_longPress_timer);
-
-	pwrkey->do_reboot++;
-	pr_info("Power key held for 7 seconds; will reboot on release.\n");
-	schedule_work(&pwrkey->buzz_work);
-
-	return HRTIMER_NORESTART;
-}
-
 static irqreturn_t pwrkey_press_irq(int irq, void *_pwrkey)
 {
 	struct pmic8xxx_pwrkey *pwrkey = _pwrkey;
-	struct timespec uptime;
-
-	pwrkey->do_reboot = 0;
-
-	do_posix_clock_monotonic_gettime(&uptime);
-
-	if (uptime.tv_sec > 50)	{
-		hrtimer_start(&pwrkey->very_longPress_timer,
-				ktime_set(7, 0), HRTIMER_MODE_REL);
-	}
 
 #ifdef CONFIG_PM_DEEPSLEEP
 
@@ -125,14 +89,6 @@ static irqreturn_t pwrkey_press_irq(int irq, void *_pwrkey)
 static irqreturn_t pwrkey_release_irq(int irq, void *_pwrkey)
 {
 	struct pmic8xxx_pwrkey *pwrkey = _pwrkey;
-
-	hrtimer_cancel(&pwrkey->very_longPress_timer);
-
-	if (pwrkey->do_reboot) {
-		pr_info("Power key released; REBOOTING.\n");
-		if (pwrkey->do_freboot)
-			pwrkey->do_freboot();
-	}
 
 #ifdef CONFIG_PM_DEEPSLEEP
 	if (get_deepsleep_mode()) {
@@ -248,20 +204,6 @@ static int __devinit pmic8xxx_pwrkey_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "Can't register power key: %d\n", err);
 		goto free_input_dev;
 	}
-
-	pwrkey->do_fbuzz = pdata->buzz;
-	pwrkey->do_freboot = pdata->reboot;
-
-	pwrkey->do_reboot = 0;
-
-	INIT_WORK(&pwrkey->buzz_work, buzz_notify);
-
-	hrtimer_init(&(pwrkey->very_longPress_timer),
-			CLOCK_MONOTONIC,
-			HRTIMER_MODE_REL);
-
-	(pwrkey->very_longPress_timer).function =
-		very_longPress_timer_callback;
 
 	pwrkey->key_press_irq = key_press_irq;
 	pwrkey->key_release_irq = key_release_irq;
